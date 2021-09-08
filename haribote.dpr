@@ -42,21 +42,30 @@ asm
   ret
 end;
 
-function screen: PChar;
+function screen: PChar; stdcall;
 begin
-  result:=PChar($000B8000);
+  result := PChar($000B8000);
+end;
+
+procedure writechar(x, y: integer; text: Char; color: Byte); stdcall;
+var
+  address: WORD;
+begin
+  address := 2 * x + 160 * y;
+  screen[address] := text;
+  screen[address + 1] := Char(color);
 end;
 
 procedure harimain; stdcall;
 var
   i: integer;
-  p: ^TArray<Byte>;
 begin
-  for i := 0 to 80*25 do
+  for i := 0 to 80 * 25 do
   begin
-    screen[2*i]:=#0;
-    screen[2*i-1]:=Char(White);
+    screen[2 * i] := 'a';
+    screen[2 * i - 1] := Char(White);
   end;
+//  writechar(0, 1, 'A', Blue);
   while True do
     io_hlt;
 end;
