@@ -1,8 +1,9 @@
 program haribote;
 
+{$APPTYPE CONSOLE}
 {$R *.res}
 
-uses System.Classes;
+uses System.Classes, ShellAPI;
 
 const
   Blue = 1;
@@ -41,15 +42,20 @@ asm
   ret
 end;
 
+function screen: PChar;
+begin
+  result:=PChar($000B8000);
+end;
+
 procedure harimain; stdcall;
 var
   i: integer;
   p: ^TArray<Byte>;
 begin
-  for i := $000A0000 to $000AFFFF do
+  for i := 0 to 80*25 do
   begin
-    p := Pointer(i);
-    p^[i] := Byte(i and $0F);
+    screen[2*i]:=#0;
+    screen[2*i-1]:=Char(White);
   end;
   while True do
     io_hlt;
@@ -68,13 +74,13 @@ var
   image_base, image_size: integer;
   size: cardinal;
   entry_addr: integer;
+  LExePath, LParams: string;
 
 begin
   image_base := $00400000;
   entry_addr := integer(@loader) - image_base;
   size := entry_addr - SizeOf(multiboot_hdr);
   image_size := size + $00001000;
-
 
   MemoryStream := TMemoryStream.Create;
   try
@@ -113,5 +119,8 @@ begin
   finally
     MemoryStream.Free;
   end;
+  LExePath := 'qemu-system-x86_64.exe';
+  LParams := '-kernel Kernel.bin';
+  ShellExecute(0, nil, PChar(LExePath), PChar(LParams), nil, 5);
 
 end.
