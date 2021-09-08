@@ -6,25 +6,30 @@ program font;
 uses
   System.SysUtils, System.Classes;
 
-function font_A(data: array of Byte): Char;
+type
+  TFont = array [0..17] of Byte;
+
+function font_A(data: array of Byte): TFont;
 var
-  tmp: array [0 .. 15] of Byte;
+  tmp: TFont;
   i: integer;
 begin
-  for i := 0 to 15 do
+  for i := 0 to 16 do
     tmp[i] := data[i];
-  result := Char(addr(tmp)^);
+  result := tmp;
 end;
 
 var
   ms: TMemoryStream;
+  f: TFont;
 
 begin
   try
     { TODO -oUser -cConsole メイン : ここにコードを記述してください }
+    f := font_A([$00, $18, $18, $18, $24, $24, $24, $24, $7E, $42, $42,
+      $E7, $00, $00]);
     ms := TMemoryStream.Create;
-    ms.WriteData(font_A([$00, $18, $18, $18, $24, $24, $24, $24, $7E, $42, $42,
-      $E7, $00, $00]));
+    ms.WriteBuffer(f,SizeOf(f));
     ms.SaveToFile('hankaku.bin');
     ms.Free;
   except

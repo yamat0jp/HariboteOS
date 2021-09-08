@@ -42,18 +42,9 @@ asm
   ret
 end;
 
-function screen: PChar; stdcall;
+function screen: PByte; stdcall;
 begin
-  result := PChar($000B8000);
-end;
-
-procedure writechar(x, y: integer; text: Char; color: Byte); stdcall;
-var
-  address: WORD;
-begin
-  address := 2 * x + 160 * y;
-  screen[address] := text;
-  screen[address + 1] := Char(color);
+  result := PByte($000B8000);
 end;
 
 procedure putfont8(x, y: integer; color: Byte; font: Pointer); stdcall;
@@ -63,47 +54,44 @@ var
   i: integer;
   pdata: ^TFont;
   b: Byte;
-  cl: Char;
-  p: PChar;
+  p: PByte;
   xsize: integer;
 begin
   pdata := font;
   xsize := 360;
-  cl:=Char(color);
   for i := 0 to 16 do
   begin
     p := screen + (y + i) * xsize + x;
     b := pdata^[i];
     if b and $80 <> 0 then
-      p[0] := cl;
+      p[0] := color;
     if b and $40 <> 0 then
-      p[1] := cl;
+      p[1] := color;
     if b and $20 <> 0 then
-      p[2] := cl;
+      p[2] := color;
     if b and $10 <> 0 then
-      p[3] := cl;
+      p[3] := color;
     if b and $08 <> 0 then
-      p[4] := cl;
+      p[4] := color;
     if b and $04 <> 0 then
-      p[5] := cl;
+      p[5] := color;
     if b and $02 <> 0 then
-      p[6] := cl;
+      p[6] := color;
     if b and $01 <> 0 then
-      p[7] := cl;
+      p[7] := color;
   end;
 end;
 
 procedure harimain; stdcall;
 var
   i: integer;
-  hankaku: array [0 .. 4096] of Char;
 begin
   for i := 0 to 80 * 25 do
   begin
-    screen[2 * i] := Char(255);
-    screen[2 * i + 1] := Char(255);
+    screen[2 * i] := 255;
+    screen[2 * i + 1] := 255;
   end;
-  putfont8(8, 8, 255, Pointer(integer(@hankaku) + 16));
+  putfont8(8, 8, 0, Pointer($0000C520 + 8 * 1));
   while true do
     io_hlt;
 end;
@@ -130,7 +118,7 @@ begin
   image_size := size + $00001000;
 
   MemoryStream := TMemoryStream.Create;
-  fs:=TMemoryStream.Create;
+  fs := TMemoryStream.Create;
   try
     FillChar(multiboot_hdr, SizeOf(multiboot_hdr), 0);
     multiboot_hdr.magic := $1BADB002;
@@ -164,7 +152,8 @@ begin
     FreeMem(pBuff, dwSize);
 
     fs.LoadFromFile('hankaku.bin');
-    MemoryStream.LoadFromStream(fs);
+    fs.Position := 0;
+    MemoryStream.CopyFrom(fs, 0);
 
     MemoryStream.SaveToFile('Kernel.bin');
   finally
