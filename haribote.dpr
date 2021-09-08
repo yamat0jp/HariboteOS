@@ -56,17 +56,55 @@ begin
   screen[address + 1] := Char(color);
 end;
 
+procedure putfont8(x, y: integer; color: Byte; font: Pointer); stdcall;
+type
+  TFont = array [0 .. 16] of Byte;
+var
+  i: integer;
+  pdata: ^TFont;
+  b: Byte;
+  cl: Char;
+  p: PChar;
+  xsize: integer;
+begin
+  pdata := font;
+  xsize := 360;
+  cl:=Char(color);
+  for i := 0 to 16 do
+  begin
+    p := screen + (y + i) * xsize + x;
+    b := pdata^[i];
+    if b and $80 <> 0 then
+      p[0] := cl;
+    if b and $40 <> 0 then
+      p[1] := cl;
+    if b and $20 <> 0 then
+      p[2] := cl;
+    if b and $10 <> 0 then
+      p[3] := cl;
+    if b and $08 <> 0 then
+      p[4] := cl;
+    if b and $04 <> 0 then
+      p[5] := cl;
+    if b and $02 <> 0 then
+      p[6] := cl;
+    if b and $01 <> 0 then
+      p[7] := cl;
+  end;
+end;
+
 procedure harimain; stdcall;
 var
   i: integer;
+  hankaku: array [0 .. 4096] of Char;
 begin
   for i := 0 to 80 * 25 do
   begin
-    screen[2 * i] := 'a';
-    screen[2 * i - 1] := Char(White);
+    screen[2 * i] := Char(255);
+    screen[2 * i + 1] := Char(255);
   end;
-//  writechar(0, 1, 'A', Blue);
-  while True do
+  putfont8(8, 8, 255, Pointer(integer(@hankaku) + 16));
+  while true do
     io_hlt;
 end;
 
@@ -76,7 +114,7 @@ begin
 end;
 
 var
-  MemoryStream: TMemoryStream;
+  MemoryStream, fs: TMemoryStream;
   pFunc, pBuff: Pointer;
   fwSize, dwSize: cardinal;
   multiboot_hdr: TMultiboot_hdr;
@@ -92,6 +130,7 @@ begin
   image_size := size + $00001000;
 
   MemoryStream := TMemoryStream.Create;
+  fs:=TMemoryStream.Create;
   try
     FillChar(multiboot_hdr, SizeOf(multiboot_hdr), 0);
     multiboot_hdr.magic := $1BADB002;
@@ -124,9 +163,13 @@ begin
     MemoryStream.WriteBuffer(pBuff^, dwSize);
     FreeMem(pBuff, dwSize);
 
+    fs.LoadFromFile('hankaku.bin');
+    MemoryStream.LoadFromStream(fs);
+
     MemoryStream.SaveToFile('Kernel.bin');
   finally
     MemoryStream.Free;
+    fs.Free;
   end;
   LExePath := 'qemu-system-x86_64.exe';
   LParams := '-kernel Kernel.bin';
