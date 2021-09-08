@@ -11,6 +11,23 @@ const
   Yellow = 14;
   White = 15;
 
+  col8_000000 = 0;
+  col8_ff0000 = 1;
+  col8_00ff00 = 2;
+  col8_ffff00 = 3;
+  col8_0000ff = 4;
+  col8_ff00ff = 5;
+  col8_00ffff = 6;
+  col8_ffffff = 7;
+  col8_c6c6c6 = 8;
+  col8_840000 = 9;
+  col8_008400 = 10;
+  col8_848400 = 11;
+  col8_000084 = 12;
+  col8_840084 = 13;
+  col8_008484 = 14;
+  col8_848484 = 15;
+
 type
   TMultiboot_hdr = packed record
     magic, flags, checksum: cardinal;
@@ -34,6 +51,69 @@ asm
   ret
 end;
 
+procedure io_cli; stdcall;
+asm
+  cli
+  ret
+end;
+
+procedure io_sti; stdcall;
+asm
+  sti
+  ret
+end;
+
+procedure io_stihlt; stdcall;
+asm
+  sti
+  hlt
+  ret
+end;
+
+function io_int8(port: integer): Int8; stdcall;
+asm
+  mov edx,  [esp+4]
+  mov eax,  0
+  in  al, dx
+  ret
+end;
+
+function io_int16(port: integer): Int16; stdcall;
+asm
+  mov edx,  [esp+4]
+  mov eax,  0
+  in  ax,  dx
+  ret
+end;
+
+function io_int32(port: integer): Int32; stdcall;
+asm
+  mov edx,  [esp+4]
+  mov eax,  [esp+8]
+  out dx, eax
+  ret
+end;
+
+function io_out8(port, data: integer): integer; stdcall;
+begin
+
+end;
+
+function io_load_eflags: integer; stdcall;
+asm
+  pushfd
+  pop eax
+  ret
+end;
+
+function io_store_eflags(port: integer): integer; stdcall;
+asm
+  mov eax,  [esp+4]
+  push  eax
+  popfd
+  ret
+end;
+
 procedure write_mem8(addr, data: integer); stdcall;
 asm
   mov ecx,[esp+4]
@@ -47,6 +127,16 @@ begin
   result := PByte($000B8000);
 end;
 
+procedure boxfill8(vram: PByte; xsize: integer; b: Byte;
+  x0, y0, x1, y1: integer); stdcall;
+var
+  x, y: integer;
+begin
+  for y := y0 to y1 do
+    for x := x0 to x1 do
+      vram[y * xsize + x] := b;
+end;
+
 procedure putfont8(x, y: integer; color: Byte; font: Pointer); stdcall;
 type
   TFont = array [0 .. 16] of Byte;
@@ -58,7 +148,7 @@ var
   xsize: integer;
 begin
   pdata := font;
-  xsize := 360;
+  xsize := 320;
   for i := 0 to 16 do
   begin
     p := screen + (y + i) * xsize + x;
@@ -82,16 +172,78 @@ begin
   end;
 end;
 
+procedure set_palette(start, stop: integer; rgb: PByte); stdcall;
+var
+  i, eflags: integer;
+begin
+  eflags := io_load_eflags;
+  io_cli;
+  io_out8($03C8, start);
+  for i := start to stop do
+  begin
+    io_out8($03C9, rgb[0] div 4);
+    io_out8($03C9, rgb[1] div 4);
+    io_out8($03C9, rgb[2] div 4);
+    inc(rgb, 3);
+  end;
+  io_store_eflags(eflags);
+end;
+
+procedure init_palette; stdcall;
+var
+  table_rgb: array [0 .. 16 * 3] of Byte;
+  procedure setting(data: array of Byte);
+  var
+    i: integer;
+  begin
+    for i := 0 to High(data) do
+      table_rgb[i] := data[i];
+  end;
+
+begin
+  setting([$00, $00, $00, $FF, $00, $00, $00, $FF, $00, $FF, $FF, $00, $00, $00,
+    $FF, $FF, $00, $FF, $00, $FF, $FF, $C6, $C6, $C6, $84, $00, $00, $00, $84,
+    $00, $84, $84, $00, $00, $84, $84, $84, $84, $84]);
+  set_palette(0, 15, @table_rgb);
+end;
+
 procedure harimain; stdcall;
 var
   i: integer;
+  vram: PByte;
+  xsize, ysize: integer;
+  mult: ^TMultiboot_hdr;
 begin
-  for i := 0 to 80 * 25 do
+  vram := Pointer($0000);
+  xsize := 320;
+  ysize := 200;
+  for i := 0 to 320 * 200 do
   begin
-    screen[2 * i] := 255;
-    screen[2 * i + 1] := 255;
+    screen[3 * i] := 255;
+    screen[3 * i + 1] := 255;
+    screen[3 * i + 2] := 255;
   end;
-  putfont8(8, 8, 0, Pointer($0000C520 + 8 * 1));
+  boxfill8(vram, xsize, col8_008484, 0, 0, xsize - 1, ysize - 29);
+  boxfill8(vram, xsize, col8_c6c6c6, 0, ysize - 28, xsize - 1, ysize - 28);
+  boxfill8(vram, xsize, col8_ffffff, 0, ysize - 27, xsize - 1, ysize - 27);
+  boxfill8(vram, xsize, col8_c6c6c6, 0, ysize - 26, xsize - 1, ysize - 1);
+
+  boxfill8(vram, xsize, col8_ffffff, 3, ysize - 24, 59, ysize - 24);
+  boxfill8(vram, xsize, col8_ffffff, 2, ysize - 24, 2, ysize - 4);
+  boxfill8(vram, xsize, col8_848484, 3, ysize - 4, 59, ysize - 4);
+  boxfill8(vram, xsize, col8_848484, 59, ysize - 23, 59, ysize - 5);
+  boxfill8(vram, xsize, col8_000000, 2, ysize - 3, 59, ysize - 3);
+  boxfill8(vram, xsize, col8_000000, 60, ysize - 24, 60, ysize - 3);
+
+  boxfill8(vram, xsize, col8_848484, xsize - 47, ysize - 24, xsize - 4,
+    ysize - 24);
+  boxfill8(vram, xsize, col8_848484, xsize - 47, ysize - 23, xsize - 47,
+    ysize - 4);
+  boxfill8(vram, xsize, col8_ffffff, xsize - 47, ysize - 3, xsize - 4,
+    ysize - 3);
+  boxfill8(vram, xsize, col8_ffffff, xsize - 3, ysize - 24, xsize - 3,
+    ysize - 3);
+  putfont8(8, 8, 100, Pointer($0000C520 + 1));
   while true do
     io_hlt;
 end;
