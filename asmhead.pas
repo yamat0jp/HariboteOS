@@ -40,10 +40,10 @@ const
 
 type
   TBootInfo = packed record
-    cyls, leds, vmode, reserve: Int16;
-    scrnx, scrny: Int16;
-    vram: Int16;
-    hankaku: Pointer;
+    cyls: Int16;
+    leds: Int8;
+    vmode, scrnx, scrny: Int16;
+    vram, hankaku: Pointer;
   end;
 
   TSegment = packed record

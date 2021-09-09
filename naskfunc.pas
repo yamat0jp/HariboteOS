@@ -1,14 +1,3 @@
-
-procedure harimain; stdcall; forward;
-procedure inthandler21(esp: integer); stdcall; forward;
-
-procedure loader; stdcall;
-asm
-  cli
-  call harimain
-  hlt
-end;
-
 procedure io_hlt; stdcall;
 asm
   hlt
@@ -34,7 +23,7 @@ asm
   ret
 end;
 
-function io_int8(port: integer): Int8; stdcall;
+function io_in8(port: integer): Int8; stdcall;
 asm
   mov edx,  [esp+4]
   mov eax,  0
@@ -42,7 +31,7 @@ asm
   ret
 end;
 
-function io_int16(port: integer): Int16; stdcall;
+function io_in16(port: integer): Int16; stdcall;
 asm
   mov edx,  [esp+4]
   mov eax,  0
@@ -50,11 +39,10 @@ asm
   ret
 end;
 
-function io_int32(port: integer): Int32; stdcall;
+function io_in32(port: integer): Int32; stdcall;
 asm
   mov edx,  [esp+4]
-  mov eax,  [esp+8]
-  out dx, eax
+  in  eax,  dx
   ret
 end;
 
@@ -127,4 +115,5 @@ asm
   pop es
   iretd
 end;
+
 
