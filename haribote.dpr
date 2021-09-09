@@ -63,6 +63,7 @@ begin
   fs := TMemoryStream.Create;
   try
     info:=Pointer($0ff0);
+//    MemoryStream.WriteBuffer(Pointer(image_base)^, image_size);
 
     MemoryStream.WriteBuffer(info, SizeOf(TBootInfo));
     dwSize := image_size - SizeOf(TBootInfo);
@@ -91,7 +92,7 @@ begin
     MemoryStream.Free;
     fs.Free;
   end;
-  LExePath := 'qemu-system-x86_64.exe';
+  LExePath := 'qemu-system-i386.exe';
   LParams := '-kernel Kernel.bin';
   ShellExecute(0, nil, PChar(LExePath), PChar(LParams), nil, 5);
 

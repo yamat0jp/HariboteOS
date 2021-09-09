@@ -1,9 +1,4 @@
 
-function screen: PByte; stdcall;
-begin
-  result := PByte($000B8000);
-end;
-
 procedure boxfill8(vram: PByte; xsize: integer; b: Byte;
   x0, y0, x1, y1: integer); stdcall;
 var
@@ -54,13 +49,11 @@ procedure putfont8_asc(vram: PByte; xsize, x, y: integer; b: Byte;
   s, t: PChar); stdcall;
 var
   i: integer;
-  hankaku: PChar;
 begin
-  hankaku := t;
   i := 0;
   while s[i] <> #0 do
   begin
-    putfont8(vram, xsize, x, y, b, hankaku + i * 16);
+    putfont8(vram, xsize, x, y, b, t + i * 16);
     inc(x, 8);
     inc(i);
   end;

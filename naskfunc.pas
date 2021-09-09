@@ -25,7 +25,7 @@ end;
 
 function io_in8(port: integer): Int8; stdcall;
 asm
-  mov edx,  [esp+4]
+  mov edx,  port
   mov eax,  0
   in  al, dx
   ret
@@ -33,7 +33,7 @@ end;
 
 function io_in16(port: integer): Int16; stdcall;
 asm
-  mov edx,  [esp+4]
+  mov edx,  port
   mov eax,  0
   in  ax,  dx
   ret
@@ -41,31 +41,31 @@ end;
 
 function io_in32(port: integer): Int32; stdcall;
 asm
-  mov edx,  [esp+4]
+  mov edx,  port
   in  eax,  dx
   ret
 end;
 
 function io_out8(port, data: integer): integer; stdcall;
 asm
-  mov edx,  [esp+4]
-  mov eax,  [esp+8]
-  out dx, ax
+  mov edx,  port
+  mov eax,  data
+  out dx, al
   ret
 end;
 
 function io_out16(port, data: integer): Int16; stdcall;
 asm
-  mov edx,  [esp+4]
-  mov eax,  [esp+8]
+  mov edx,  port
+  mov eax,  data
   out dx, ax
   ret
 end;
 
 function io_out32(port, data: integer): Int32; stdcall;
 asm
-  mov edx,  [esp+4]
-  mov eax,  [esp+8]
+  mov edx,  port
+  mov eax,  data
   out dx, eax
   ret
 end;
@@ -79,7 +79,7 @@ end;
 
 function io_store_eflags(port: integer): integer; stdcall;
 asm
-  mov eax,  [esp+4]
+  mov eax,  port
   push  eax
   popfd
   ret
@@ -87,15 +87,18 @@ end;
 
 procedure load_gdtr(limit, addr: integer);
 asm
-  mov ax, [esp+4]
-  mov [esp+6],  ax
-  lgdt  [esp+6]
+  mov eax, limit
+  mov addr,  eax
+  lgdt  WORD [addr]
   ret
 end;
 
 procedure load_idtr(limit, addr: integer);
 asm
-
+  mov eax,  limit
+  mov addr,  eax
+  lidt  WORD [addr]
+  ret
 end;
 
 procedure asm_inthandler21; stdcall;
