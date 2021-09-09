@@ -29,11 +29,22 @@ const
   col8_848484 = 15;
 
 type
-  TMultiboot_hdr = packed record
-    magic, flags, checksum: cardinal;
-    header_addr, load_addr, load_end_addr, bss_end_addr, entry_addr: cardinal;
-    mode_type: cardinal;
-    width, height, depth: cardinal;
+  TBootInfo = packed record
+    cyls, leds, vmode, reserve: Int16;
+    scrnx, scrny: Int16;
+    vram: Int16;
+  end;
+
+  TSegment = packed record
+    limit_low, base_low: Int16;
+    base_mid, access_right: Int16;
+    limit_hight, base_hight: Int16;
+  end;
+
+  TGate = packed record
+    offset_low, selector: Int16;
+    dw_count, access_right: Int16;
+    offset_hight: Int16;
   end;
 
 procedure harimain; stdcall; forward;
@@ -95,8 +106,27 @@ asm
 end;
 
 function io_out8(port, data: integer): integer; stdcall;
-begin
+asm
+  mov edx,  [esp+4]
+  mov eax,  [esp+8]
+  out dx, ax
+  ret
+end;
 
+function io_out16(port, data: integer): Int16; stdcall;
+asm
+  mov edx,  [esp+4]
+  mov eax,  [esp+8]
+  out dx, ax
+  ret
+end;
+
+function io_out32(port, data: integer): Int32; stdcall;
+asm
+  mov edx,  [esp+4]
+  mov eax,  [esp+8]
+  out dx, eax
+  ret
 end;
 
 function io_load_eflags: integer; stdcall;
@@ -112,6 +142,67 @@ asm
   push  eax
   popfd
   ret
+end;
+
+procedure load_gdtr(limit, addr: integer);
+asm
+  mov ax, [esp+4]
+  mov [esp+6],  ax
+  lgdt  [esp+6]
+  ret
+end;
+
+procedure load_idtr(limit, addr: integer);
+asm
+
+end;
+
+procedure set_segmdesc(var sd: TSegment; limit, base, ar: cardinal); stdcall;
+begin
+  if limit > $FFFFF then
+  begin
+    ar := ar or $8000;
+    limit := limit div $1000;
+  end;
+  sd.limit_low := limit and $FFFF;
+  sd.base_low := base and $FFFF;
+  sd.base_mid := (base shr 16) and $FF;
+  sd.base_hight := (base shr 24) and $FF;
+end;
+
+procedure set_gatedesc(var gd: TGate; offset, selector, ar: cardinal); stdcall;
+begin
+  gd.offset_low := offset and $FFFF;
+  gd.selector := selector;
+  gd.dw_count := (ar shr 8) and $FF;
+  gd.access_right := ar and $FF;
+  gd.offset_hight := (offset shr 16) and $FFFF;
+end;
+
+procedure init_gdtidt; stdcall;
+var
+  gdt: ^TSegment;
+  idt: ^TGate;
+  i: integer;
+begin
+  gdt := Pointer($00270000);
+  idt := Pointer($0026F800);
+  for i := 0 to 8192 do
+  begin
+    inc(integer(gdt), i);
+    set_segmdesc(gdt^, 0, 0, 0);
+  end;
+  inc(integer(gdt));
+  set_segmdesc(gdt^, $FFFFFFFF, $00000000, $4092);
+  inc(integer(gdt), 2);
+  set_segmdesc(gdt^, $0007FFFF, $00280000, $409A);
+  load_gdtr($FFFF, $00270000);
+  for i := 0 to 256 do
+  begin
+    inc(integer(idt), i);
+    set_gatedesc(idt^, 0, 0, 0);
+  end;
+  load_idtr($07FF, $0026F800);
 end;
 
 procedure write_mem8(addr, data: integer); stdcall;
@@ -137,7 +228,8 @@ begin
       vram[y * xsize + x] := b;
 end;
 
-procedure putfont8(x, y: integer; color: Byte; font: Pointer); stdcall;
+procedure putfont8(vram: PByte; width, x, y: integer; color: Byte;
+  font: Pointer); stdcall;
 type
   TFont = array [0 .. 16] of Byte;
 var
@@ -151,7 +243,7 @@ begin
   xsize := 320;
   for i := 0 to 16 do
   begin
-    p := screen + (y + i) * xsize + x;
+    p := vram + (y + i) * xsize + x;
     b := pdata^[i];
     if b and $80 <> 0 then
       p[0] := color;
@@ -169,6 +261,22 @@ begin
       p[6] := color;
     if b and $01 <> 0 then
       p[7] := color;
+  end;
+end;
+
+procedure putfont8_asc(vram: PByte; xsize, x, y: integer; b: Byte;
+  s: PChar); stdcall;
+var
+  i: integer;
+  hankaku: PByte;
+begin
+  hankaku := $0000;
+  i := 0;
+  while s[i] <> #0 do
+  begin
+    putfont8(vram, xsize, x, y, b, hankaku + i * 16);
+    inc(x, 8);
+    inc(i);
   end;
 end;
 
@@ -207,22 +315,31 @@ begin
   set_palette(0, 15, @table_rgb);
 end;
 
+procedure init_screen(vram: PByte; x, y: integer); stdcall;
+begin
+
+end;
+
 procedure harimain; stdcall;
 var
   i: integer;
   vram: PByte;
   xsize, ysize: integer;
-  mult: ^TMultiboot_hdr;
+  info: ^TBootInfo;
 begin
-  vram := Pointer($0000);
-  xsize := 320;
-  ysize := 200;
-  for i := 0 to 320 * 200 do
-  begin
+  info := Pointer($0FF0);
+  vram := Pointer(info^.vram);
+  xsize := info^.scrnx;
+  ysize := info^.scrny;
+  {
+    for i := 0 to xsize * ysize - 1 do
+    begin
     screen[3 * i] := 255;
     screen[3 * i + 1] := 255;
     screen[3 * i + 2] := 255;
-  end;
+    end; }
+  init_palette;
+  init_screen(vram, xsize, ysize);
   boxfill8(vram, xsize, col8_008484, 0, 0, xsize - 1, ysize - 29);
   boxfill8(vram, xsize, col8_c6c6c6, 0, ysize - 28, xsize - 1, ysize - 28);
   boxfill8(vram, xsize, col8_ffffff, 0, ysize - 27, xsize - 1, ysize - 27);
@@ -243,7 +360,7 @@ begin
     ysize - 3);
   boxfill8(vram, xsize, col8_ffffff, xsize - 3, ysize - 24, xsize - 3,
     ysize - 3);
-  putfont8(8, 8, 100, Pointer($0000C520 + 1));
+  putfont8(vram, xsize, 8, 8, 100, Pointer($0000C520 + 1));
   while true do
     io_hlt;
 end;
@@ -257,7 +374,7 @@ var
   MemoryStream, fs: TMemoryStream;
   pFunc, pBuff: Pointer;
   fwSize, dwSize: cardinal;
-  multiboot_hdr: TMultiboot_hdr;
+  info: TBootInfo;
   image_base, image_size: integer;
   size: cardinal;
   entry_addr: integer;
@@ -266,29 +383,32 @@ var
 begin
   image_base := $00400000;
   entry_addr := integer(@loader) - image_base;
-  size := entry_addr - SizeOf(multiboot_hdr);
-  image_size := size + $00001000;
+  size := entry_addr - SizeOf(TBootInfo);
 
   MemoryStream := TMemoryStream.Create;
   fs := TMemoryStream.Create;
   try
-    FillChar(multiboot_hdr, SizeOf(multiboot_hdr), 0);
-    multiboot_hdr.magic := $1BADB002;
-    multiboot_hdr.flags := 1 shl 16;
-    multiboot_hdr.checksum :=
-      cardinal(-multiboot_hdr.magic - multiboot_hdr.flags);
-    multiboot_hdr.header_addr := image_base;
-    multiboot_hdr.load_addr := image_base;
-    multiboot_hdr.load_end_addr := image_base + image_size;
-    multiboot_hdr.bss_end_addr := image_base + image_size;
-    multiboot_hdr.entry_addr := image_base + entry_addr;
-    multiboot_hdr.mode_type := 0;
-    multiboot_hdr.width := 0;
-    multiboot_hdr.height := 0;
-    multiboot_hdr.depth := 0;
+    FillChar(info, SizeOf(TBootInfo), #0);
+    info.scrnx := 320;
 
-    MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
-    dwSize := entry_addr - SizeOf(multiboot_hdr);
+    {
+      FillChar(multiboot_hdr, SizeOf(multiboot_hdr), 0);
+      multiboot_hdr.magic := $1BADB002;
+      multiboot_hdr.flags := 1 shl 16;
+      multiboot_hdr.checksum :=
+      cardinal(-multiboot_hdr.magic - multiboot_hdr.flags);
+      multiboot_hdr.header_addr := image_base;
+      multiboot_hdr.load_addr := image_base;
+      multiboot_hdr.load_end_addr := image_base + image_size;
+      multiboot_hdr.bss_end_addr := image_base + image_size;
+      multiboot_hdr.entry_addr := image_base + entry_addr;
+      multiboot_hdr.mode_type := 0;
+      multiboot_hdr.width := 0;
+      multiboot_hdr.height := 0;
+      multiboot_hdr.depth := 0; }
+
+    MemoryStream.WriteBuffer(info, SizeOf(TBootInfo));
+    dwSize := entry_addr - SizeOf(TBootInfo);
     pBuff := AllocMem(dwSize);
     MemoryStream.WriteBuffer(pBuff^, dwSize);
     FreeMem(pBuff, dwSize);
@@ -304,7 +424,6 @@ begin
     FreeMem(pBuff, dwSize);
 
     fs.LoadFromFile('hankaku.bin');
-    fs.Position := 0;
     MemoryStream.CopyFrom(fs, 0);
 
     MemoryStream.SaveToFile('Kernel.bin');
