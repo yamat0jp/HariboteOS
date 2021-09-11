@@ -57,4 +57,3 @@ type
     dw_count, access_right: Int16;
     offset_hight: Int16;
   end;
-

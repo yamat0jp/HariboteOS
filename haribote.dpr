@@ -8,7 +8,6 @@ uses
   ShellAPI;
 
 {$I asmhead}
-
 procedure harimain; stdcall; forward;
 procedure inthandler21(esp: integer); stdcall; forward;
 
@@ -28,6 +27,9 @@ var
   vram: PByte;
   xsize, ysize: integer;
   info: ^TBootInfo;
+
+  i: integer;
+  screen: PByte;
 begin
   info := Pointer($00);
   vram := info^.vram;
@@ -38,6 +40,12 @@ begin
 
   init_palette;
   init_screen8(vram, xsize, ysize);
+
+  //test
+  screen := Pointer($000a0000);
+  for i := 0 to $0000FFFF do
+    screen[i] := i and $0F;
+
   while True do
     io_hlt;
 end;
@@ -50,21 +58,18 @@ end;
 var
   MemoryStream, fs: TMemoryStream;
   pFunc, pBuff: Pointer;
-  fwSize, dwSize: cardinal;
+  fwSize, dwSize, image_size: cardinal;
   info: TBootInfo;
-  image_base, image_size: integer;
   LExePath, LParams: string;
 
 begin
-  image_base := $c200;
-  image_size:=integer(@loader)-image_base;
-
   MemoryStream := TMemoryStream.Create;
   fs := TMemoryStream.Create;
   try
-    info.vram:=Pointer($B8000);
-//    MemoryStream.WriteBuffer(Pointer(image_base)^, image_size);
-
+    info.vram := Pointer($E0000000);
+    info.scrnx := 256;
+    info.scrny := 256;
+    image_size:=$10000;
     MemoryStream.WriteBuffer(info, SizeOf(TBootInfo));
     dwSize := image_size - SizeOf(TBootInfo);
     pBuff := AllocMem(dwSize);
@@ -73,17 +78,16 @@ begin
 
     pFunc := @loader;
     fwSize := cardinal(@loader_end) - cardinal(@loader);
+    fs.LoadFromFile('hankaku.bin');
 
-    image_size := $00001000;
-    dwSize := -fwSize + image_size;
+    image_size := $00100000;
+    dwSize := image_size - fwSize- fs.Size;
 
     pBuff := AllocMem(dwSize);
     MemoryStream.WriteBuffer(pFunc^, fwSize);
     MemoryStream.WriteBuffer(pBuff^, dwSize);
-    FreeMem(pBuff, dwSize);
-
-    fs.LoadFromFile('hankaku.bin');
     MemoryStream.CopyFrom(fs, 0);
+    FreeMem(pBuff, dwSize);
 
     MemoryStream.SaveToFile('Kernel.bin');
   finally

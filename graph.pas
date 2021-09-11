@@ -6,7 +6,7 @@ var
 begin
   for y := y0 to y1 do
     for x := x0 to x1 do
-      vram[y * xsize + 2*x] := b;
+      vram[y * xsize + x] := b;
 end;
 
 procedure putfont8(vram: PByte; width, x, y: integer; color: Byte;
@@ -51,7 +51,7 @@ var
   i: integer;
 begin
   i := 0;
-  while s[i] <> #0 do
+  while s[i] <> '' do
   begin
     putfont8(vram, xsize, x, y, b, t + i * 16);
     inc(x, 8);
@@ -68,9 +68,9 @@ begin
   io_out8($03C8, start);
   for i := start to stop do
   begin
-    io_out8($03C9, rgb[0] div 4);
-    io_out8($03C9, rgb[1] div 4);
-    io_out8($03C9, rgb[2] div 4);
+    io_out8($03C9, rgb[0] shr 4);
+    io_out8($03C9, rgb[1] shr 4);
+    io_out8($03C9, rgb[2] shr 4);
     inc(rgb, 3);
   end;
   io_store_eflags(eflags);
