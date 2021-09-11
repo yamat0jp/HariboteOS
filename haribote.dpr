@@ -29,7 +29,7 @@ var
   xsize, ysize: integer;
   info: ^TBootInfo;
 begin
-  info := Pointer($0FF0);
+  info := Pointer($00);
   vram := info^.vram;
   xsize := info^.scrnx;
   ysize := info^.scrny;
@@ -51,7 +51,7 @@ var
   MemoryStream, fs: TMemoryStream;
   pFunc, pBuff: Pointer;
   fwSize, dwSize: cardinal;
-  info: ^TBootInfo;
+  info: TBootInfo;
   image_base, image_size: integer;
   LExePath, LParams: string;
 
@@ -62,7 +62,7 @@ begin
   MemoryStream := TMemoryStream.Create;
   fs := TMemoryStream.Create;
   try
-    info:=Pointer($0ff0);
+    info.vram:=Pointer($B8000);
 //    MemoryStream.WriteBuffer(Pointer(image_base)^, image_size);
 
     MemoryStream.WriteBuffer(info, SizeOf(TBootInfo));
@@ -82,8 +82,6 @@ begin
     MemoryStream.WriteBuffer(pBuff^, dwSize);
     FreeMem(pBuff, dwSize);
 
-    if @info.hankaku = nil then
-      info.hankaku := Pointer(image_base + MemoryStream.size * SizeOf(Byte));
     fs.LoadFromFile('hankaku.bin');
     MemoryStream.CopyFrom(fs, 0);
 
