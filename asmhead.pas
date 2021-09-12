@@ -1,4 +1,3 @@
-
 const
   Blue = 1;
   Red = 4;
@@ -22,8 +21,18 @@ const
   col8_008484 = 14;
   col8_848484 = 15;
 
-  ADR_BOOTINFO = $00000ff0;
+  ADR_BOOTINFO = $00000FF0;
   ADR_DISKIMG = $00100000;
+
+  ADR_IDT = $0026F800;
+  LIMIT_IDT = $000007FF;
+  ADR_GDT = $00270000;
+  LIMIT_GDT = $0000FFFF;
+  ADR_BOTPAK = $00280000;
+  LIMIT_BOTPAK = $0007FFFF;
+  AR_DATA32_RW = $4092;
+  AR_CODE32_ER = $409A;
+  AR_INTGATE32 = $008E;
 
   PIC0_ICW1 = $0020;
   PIC0_OCW2 = $0020;
@@ -31,12 +40,12 @@ const
   PIC0_ICW2 = $0021;
   PIC0_ICW3 = $0021;
   PIC0_ICW4 = $0021;
-  PIC1_ICW1 = $00a0;
-  PIC1_OCW2 = $00a0;
-  PIC1_IMR = $00a1;
-  PIC1_ICW2 = $00a1;
-  PIC1_ICW3 = $00a1;
-  PIC1_ICW4 = $00a1;
+  PIC1_ICW1 = $00A0;
+  PIC1_OCW2 = $00A0;
+  PIC1_IMR = $00A1;
+  PIC1_ICW2 = $00A1;
+  PIC1_ICW3 = $00A1;
+  PIC1_ICW4 = $00A1;
 
 type
   TBootInfo = packed record
@@ -63,4 +72,5 @@ type
     header_addr, load_addr, load_end_addr, bss_end_addr, entry_addr: cardinal;
     mode_type: cardinal;
     width, height, depth: cardinal;
+    screen_addr, font_addr: Pointer;
   end;

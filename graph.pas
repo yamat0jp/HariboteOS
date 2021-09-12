@@ -1,7 +1,3 @@
-function screen: PByte; stdcall;
-begin
-  result:=Pointer($a0000);
-end;
 
 procedure boxfill8(vram: PByte; xsize: integer; b: Byte; x0, y0, x1, y1: integer); stdcall;
 var

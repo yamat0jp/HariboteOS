@@ -26,21 +26,19 @@ procedure harimain; stdcall;
 var
   xsize, ysize: integer;
   hdr: ^TMultiBoot_hdr;
-    i: Integer;
-    vram: pbyte;
+  i: integer;
+  vram: pbyte;
 begin
-  hdr:=Pointer(0);
-  xsize:=hdr.width;
-  ysize:=hdr.height;
-{
+  hdr := Pointer(0);
+  xsize := hdr.width;
+  ysize := hdr.height;
+  vram := hdr.screen_addr;
   init_gdtidt;
   init_pic;
-
   init_palette;
-  init_screen8(screen, xsize, ysize);}
-  vram:=screen;
-  for i := 0 to $ffff do
-    vram[i]:=i and yellow;
+  init_screen8(hdr^.screen_addr, xsize, ysize);
+  for i := 0 to $FFFF do
+    vram[i] := i and white;
   while True do
     io_hlt;
 end;
@@ -54,8 +52,7 @@ var
   MemoryStream, fs: TMemoryStream;
   pFunc, pBuff: Pointer;
   fwSize, dwSize, image_size, size: cardinal;
-  info: TBootInfo;
-  multiboot_hdr: TMultiboot_hdr;
+  multiboot_hdr: TMultiBoot_hdr;
   image_base, entry_addr: integer;
   LExePath, LParams: string;
 
@@ -82,13 +79,10 @@ begin
     multiboot_hdr.width := 256;
     multiboot_hdr.height := 256;
     multiboot_hdr.depth := 0;
+    multiboot_hdr.screen_addr := Pointer($A0000);
 
-    info.vram := Pointer($E0000000);
-    info.scrnx := 256;
-    info.scrny := 256;
-
-    MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
-    dwSize := entry_addr - SizeOf(TMultiboot_hdr);
+    MemoryStream.Position := SizeOf(multiboot_hdr);
+    dwSize := entry_addr - SizeOf(TMultiBoot_hdr);
     pBuff := AllocMem(dwSize);
     MemoryStream.WriteBuffer(pBuff^, dwSize);
     FreeMem(pBuff, dwSize);
@@ -103,9 +97,12 @@ begin
     pBuff := AllocMem(dwSize);
     MemoryStream.WriteBuffer(pFunc^, fwSize);
     MemoryStream.WriteBuffer(pBuff^, dwSize);
+    multiboot_hdr.font_addr := Pointer(MemoryStream.Position);
     MemoryStream.CopyFrom(fs, 0);
     FreeMem(pBuff, dwSize);
 
+    MemoryStream.Position := 0;
+    MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
     MemoryStream.SaveToFile('Kernel.bin');
   finally
     MemoryStream.Free;

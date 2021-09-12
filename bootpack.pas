@@ -1,4 +1,3 @@
-
 procedure set_segmdesc(var sd: TSegment; limit, base, ar: cardinal); stdcall;
 begin
   if limit > $FFFFF then
@@ -25,26 +24,34 @@ procedure init_gdtidt; stdcall;
 var
   gdt: ^TSegment;
   idt: ^TGate;
+  gate: ^TGate;
   i: integer;
 begin
-  gdt := Pointer($00270000);
-  idt := Pointer($0026F800);
+  gdt := Pointer(ADR_GDT);
+  idt := Pointer(ADR_IDT);
   for i := 0 to 8192 do
   begin
     inc(PByte(gdt), i);
     set_segmdesc(gdt^, 0, 0, 0);
   end;
   inc(PByte(gdt));
-  set_segmdesc(gdt^, $FFFFFFFF, $00000000, $4092);
+  set_segmdesc(gdt^, $FFFFFFFF, $00000000, AR_DATA32_RW);
   inc(PByte(gdt), 2);
-  set_segmdesc(gdt^, $0007FFFF, $00280000, $409A);
-  load_gdtr($FFFF, $00270000);
-  for i := 0 to 256 do
+  set_segmdesc(gdt^, LIMIT_BOTPAK, ADR_BOTPAK, AR_CODE32_ER);
+  load_gdtr(LIMIT_GDT, ADR_GDT);
+  for i := 0 to LIMIT_IDT do
   begin
     inc(PByte(idt), i);
     set_gatedesc(idt^, 0, 0, 0);
   end;
-  load_idtr($07FF, $0026F800);
+  // load_idtr(LIMIT_IDT, ADR_IDT);
+
+  gate := Pointer(integer(idt) + $21);
+  set_gatedesc(gate^, cardinal(@asm_inthandler21), 2 * 8, AR_INTGATE32);
+  gate := Pointer(integer(idt) + $27);
+  set_gatedesc(gate^, cardinal(@asm_inthandler27), 2 * 8, AR_INTGATE32);
+  gate := Pointer(integer(idt) + $2C);
+  set_gatedesc(gate^, cardinal(@asm_inthandler2c), 2 * 8, AR_INTGATE32);
 end;
 
 procedure write_mem8(addr, data: integer); stdcall;
@@ -76,12 +83,11 @@ end;
 
 procedure inthandler21(esp: integer); stdcall;
 var
-  info: ^TBootInfo;
+  hdr: ^TMultiBoot_hdr;
 begin
-  info := Pointer(ADR_BOOTINFO);
-  putfont8_asc(screen, info.scrnx, 0, 0, col8_ffffff,
-    'INT 21 (IRQ-1) : PS/2 keyboard', info.hankaku);
+  hdr := Pointer(0);
+  putfont8_asc(hdr^.screen_addr, hdr^.width, 0, 0, col8_ffffff,
+    'INT 21 (IRQ-1) : PS/2 keyboard', hdr^.font_addr);
   while True do
     io_hlt;
 end;
-
