@@ -26,16 +26,21 @@ procedure harimain; stdcall;
 var
   xsize, ysize: integer;
   hdr: ^TMultiBoot_hdr;
+    i: Integer;
+    vram: pbyte;
 begin
   hdr:=Pointer(0);
   xsize:=hdr.width;
   ysize:=hdr.height;
-
-//  init_gdtidt;
+{
+  init_gdtidt;
   init_pic;
 
   init_palette;
-  init_screen8(screen, xsize, ysize);
+  init_screen8(screen, xsize, ysize);}
+  vram:=screen;
+  for i := 0 to $ffff do
+    vram[i]:=i and yellow;
   while True do
     io_hlt;
 end;
