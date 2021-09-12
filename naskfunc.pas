@@ -85,7 +85,7 @@ asm{
   ret}
 end;
 
-procedure load_gdtr(limit, addr: integer);
+procedure load_gdtr(limit, addr: integer);stdcall;
 asm
   mov eax, limit
   mov addr,  eax
@@ -93,7 +93,7 @@ asm
   ret
 end;
 
-procedure load_idtr(limit, addr: integer);
+procedure load_idtr(limit, addr: integer);stdcall;
 asm
   mov eax,  limit
   mov addr,  eax
@@ -102,7 +102,7 @@ asm
 end;
 
 procedure asm_inthandler21; stdcall;
-asm
+asm                {
   push  es
   push  ds
   pushad
@@ -116,7 +116,15 @@ asm
   popad
   pop ds
   pop es
-  iretd
+  iretd             }
 end;
 
+procedure asm_inthandler27; stdcall;
+asm
 
+end;
+
+procedure asm_inthandler2c; stdcall;
+asm
+
+end;

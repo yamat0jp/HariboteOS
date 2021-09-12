@@ -74,3 +74,4 @@ type
     width, height, depth: cardinal;
     screen_addr, font_addr: Pointer;
   end;
+

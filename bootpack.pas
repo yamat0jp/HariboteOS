@@ -83,11 +83,16 @@ end;
 
 procedure inthandler21(esp: integer); stdcall;
 var
-  hdr: ^TMultiBoot_hdr;
+  f: TFontClass;
+  hdr: ^TMultiboot_hdr;
 begin
-  hdr := Pointer(0);
-  putfont8_asc(hdr^.screen_addr, hdr^.width, 0, 0, col8_ffffff,
-    'INT 21 (IRQ-1) : PS/2 keyboard', hdr^.font_addr);
+  hdr:=Pointer(0);
+  f:=TFontClass.Create;
+  try
+    f.putfont8_asc(0,0,Blue,'test I/O');
+  finally
+    f.Free;
+  end;
   while True do
     io_hlt;
 end;

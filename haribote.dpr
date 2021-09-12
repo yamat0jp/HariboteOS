@@ -8,8 +8,8 @@ uses
   ShellAPI;
 
 {$I asmhead}
+{$I objclasses}
 procedure harimain; stdcall; forward;
-procedure inthandler21(esp: integer); stdcall; forward;
 
 procedure loader; stdcall;
 asm
@@ -24,21 +24,23 @@ end;
 
 procedure harimain; stdcall;
 var
-  xsize, ysize: integer;
   hdr: ^TMultiBoot_hdr;
-  i: integer;
-  vram: pbyte;
+  font: TFontClass;
+  screen: TScreenClass;
 begin
-  hdr := Pointer(0);
-  xsize := hdr.width;
-  ysize := hdr.height;
-  vram := hdr.screen_addr;
-  init_gdtidt;
+  hdr:=Pointer(0);
+  // init_gdtidt;
   init_pic;
   init_palette;
-  init_screen8(hdr^.screen_addr, xsize, ysize);
-  for i := 0 to $FFFF do
-    vram[i] := i and white;
+  font := TFontClass.Create;
+  screen := TScreenClass.Create;
+  try
+    font.putfont8_asc(0, 0, white, 'masasi fuke');
+    screen.init_screen8(hdr^.width, hdr^.height);
+  finally
+    font.Free;
+    screen.Free;
+  end;
   while True do
     io_hlt;
 end;
@@ -82,7 +84,7 @@ begin
     multiboot_hdr.screen_addr := Pointer($A0000);
 
     MemoryStream.Position := SizeOf(multiboot_hdr);
-    dwSize := entry_addr - SizeOf(TMultiBoot_hdr);
+    dwSize := entry_addr - MemoryStream.Position;
     pBuff := AllocMem(dwSize);
     MemoryStream.WriteBuffer(pBuff^, dwSize);
     FreeMem(pBuff, dwSize);
@@ -110,6 +112,6 @@ begin
   end;
   LExePath := 'qemu-system-x86_64.exe';
   LParams := '-kernel Kernel.bin';
-  ShellExecute(0, nil, PChar(LExePath), PChar(LParams), nil, 5);
+  ShellExecute(0, nil, pchar(LExePath), pchar(LParams), nil, 5);
 
 end.
