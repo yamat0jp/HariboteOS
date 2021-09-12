@@ -8,7 +8,7 @@ type
     procedure putfont8(x, y: integer; c: Char);
   public
     constructor Create;
-    procedure putfont8_asc(x, y: integer; str: PChar); stdcall;
+    procedure putfonts8_asc(x, y: integer; str: PChar); stdcall;
     property color: Byte read FColor write FColor;
   end;
 
@@ -22,7 +22,31 @@ type
     procedure init_screen8; stdcall;
   end;
 
-  TMouseClass = class
+  TFifoClass = class
+  protected
+    FFifo: TQueue;
+    FSize: integer;
+    procedure wait_KBC_sendready;
+    function GetStatus: integer;
+    function fifo8_push(data: Char): Boolean;
+    function fifo8_pop: Char;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    property Status: integer read GetStatus;
+  end;
+
+  TKeyFifoClass = class(TFifoClass)
+  private
+    procedure inthandler21(esp: integer);
+    function GetCount: integer;
+  public
+    constructor Create;
+    property Size: integer read FSize write FSize;
+    property Count: integer read GetCount;
+  end;
+
+  TMouseClass = class(TFifoClass)
   private
     FVram: PByte;
     FXSize, FYSize: integer;
@@ -31,25 +55,27 @@ type
     FMouse: PByte;
     procedure init_mouse_cursor8(cursor: PChar);
     procedure putblock8_8(px, py: integer; buf: PByte; bxsize: integer);
+    procedure inthandler2c(esp: integer); stdcall;
   public
     constructor Create;
     property Width: integer read FWid write FWid;
     property Height: integer read FHei write FHei;
   end;
 
-  TKeyFifoClass = class
+  TFrameWork = class
   private
-    FFifo: TQueue;
-    FSize: integer;
-    procedure inthandler21(esp: integer);
-    function GetCount: integer;
+    FFont: TFontClass;
+    FScreen: TScreenClass;
+    FKeyboard: TKeyFifoClass;
+    FMouse: TMouseClass;
+    procedure fifo8_init;
   public
     constructor Create;
     destructor Destroy; override;
-    function fifo8_push(data: Char): Boolean; stdcall;
-    function fifo8_pop: Char; stdcall;
-    property Size: integer read FSize write FSize;
-    property Count: integer read GetCount;
+    property Font: TFontClass read FFont;
+    property Screen: TScreenClass read FScreen;
+    property Keyboard: TKeyFifoClass read FKeyboard;
+    property Mouse: TMouseClass read FMouse;
   end;
 
   { TFontClass }
@@ -58,6 +84,7 @@ constructor TFontClass.Create;
 var
   bootinfo: ^TMultiboot_hdr;
 begin
+  inherited;
   bootinfo := Pointer(0);
   FVram := PByte(bootinfo^.screen_addr);
   FFont := bootinfo^.font_addr;
@@ -99,7 +126,7 @@ begin
   end;
 end;
 
-procedure TFontClass.putfont8_asc(x, y: integer; str: PChar); stdcall;
+procedure TFontClass.putfonts8_asc(x, y: integer; str: PChar); stdcall;
 var
   i: integer;
 begin
@@ -118,6 +145,7 @@ constructor TScreenClass.Create;
 var
   hdr: ^TMultiboot_hdr;
 begin
+  inherited;
   hdr := Pointer(0);
   FVram := hdr^.screen_addr;
   FXSize := hdr^.Width;
@@ -153,12 +181,94 @@ begin
   boxfill8(col8_ffffff, FXSize - 3, FYSize - 24, FXSize - 3, FYSize - 3);
 end;
 
+{ TFifoClass }
+
+constructor TFifoClass.Create;
+begin
+  inherited;
+  FFifo := TQueue.Create;
+end;
+
+destructor TFifoClass.Destroy;
+begin
+  FFifo.Free;
+  inherited;
+end;
+
+procedure TFifoClass.wait_KBC_sendready;
+begin
+  repeat
+    ;
+  until io_in8(PORT_KEYSTA) and KEYSTA_SEND_NOTREADY = 0;
+end;
+
+function TFifoClass.fifo8_push(data: Char): Boolean;
+var
+  p: PChar;
+begin
+  if FFifo.Count < FSize then
+  begin
+    New(p);
+    p^ := data;
+    FFifo.Push(p);
+    result := true;
+  end
+  else
+    result := false;
+end;
+
+function TFifoClass.fifo8_pop: Char;
+var
+  p: PChar;
+begin
+  if FFifo.Count > 0 then
+  begin
+    p := FFifo.Pop;
+    result := p^;
+    Dispose(p);
+  end
+  else
+    result := #0;
+end;
+
+function TFifoClass.GetStatus: integer;
+begin
+  result := FSize - FFifo.Count;
+end;
+
+{ KeyFifoClass }
+
+constructor TKeyFifoClass.Create;
+begin
+  inherited;
+  FSize := 32;
+  wait_KBC_sendready;
+  io_out8(PORT_KEYCMD, KEYCMD_WRITE_MODE);
+  wait_KBC_sendready;
+  io_out8(PORT_KEYDAT, KBC_MODE);
+end;
+
+procedure TKeyFifoClass.inthandler21(esp: integer);
+var
+  data: Char;
+begin
+  io_out8(PIC0_OCW2, $61);
+  data := Char(io_in8(PORT_KEYDAT));
+  fifo8_push(data);
+end;
+
+function TKeyFifoClass.GetCount: integer;
+begin
+  result := FFifo.Count;
+end;
+
 { TMouseClass }
 
 constructor TMouseClass.Create;
 var
   hdr: ^TMultiboot_hdr;
 begin
+  inherited;
   hdr := Pointer(0);
   FVram := hdr^.screen_addr;
   FXSize := hdr^.Width;
@@ -166,6 +276,10 @@ begin
   FWid := 16;
   FHei := 16;
   init_mouse_cursor8(nil);
+  wait_KBC_sendready;
+  io_out8(PORT_KEYCMD, KEYCMD_SENDTO_MOUSE);
+  wait_KBC_sendready;
+  io_out8(PORT_KEYDAT, MOUSECMD_ENABLE);
 end;
 
 procedure TMouseClass.init_mouse_cursor8(cursor: PChar);
@@ -236,65 +350,57 @@ begin
       FVram[(py + y) * FXSize + px + x] := buf[y * bxsize + x];
 end;
 
-{ KeyFifoClass }
-
-constructor TKeyFifoClass.Create;
+procedure TMouseClass.inthandler2c(esp: integer); stdcall;
+var
+  data: Byte;
 begin
-  FFifo := TQueue.Create;
-  FSize := 32;
+  io_out8(PIC1_OCW2, $64);
+  io_out8(PIC0_OCW2, $62);
+  data := io_in8(PORT_KEYDAT);
+  fifo8_push(Char(data));
 end;
 
-destructor TKeyFifoClass.Destroy;
+{ TFrameWork }
+
+constructor TFrameWork.Create;
 begin
-  FFifo.Free;
+  inherited;
+  FFont := TFontClass.Create;
+  FScreen := TScreenClass.Create;
+  FKeyboard := TKeyFifoClass.Create;
+  FMouse := TMouseClass.Create;
+  fifo8_init;
+end;
+
+destructor TFrameWork.Destroy;
+begin
+  FFont.Free;
+  FScreen.Free;
+  FKeyboard.Free;
+  FMouse.Free;
   inherited;
 end;
 
-function TKeyFifoClass.fifo8_push(data: Char): Boolean; stdcall;
+procedure TFrameWork.fifo8_init;
 var
-  p: PChar;
+  c: Char;
 begin
-  if FFifo.Count < FSize then
+  io_cli;
+  FFont.color := col8_008484;
+  if FKeyboard.Status + FMouse.Status = 0 then
+    io_stihlt
+  else if FKeyboard.Status <> 0 then
   begin
-    New(p);
-    p^ := data;
-    FFifo.Push(p);
-    result := true;
+    c := FKeyboard.fifo8_pop;
+    io_sti;
+    FScreen.boxfill8(col8_008484, 32, 16, 47, 31);
+    FFont.putfont8(32, 16, c);
   end
-  else
-    result := false;
-end;
-
-function TKeyFifoClass.fifo8_pop: Char; stdcall;
-var
-  p: PCHar;
-begin
-  if FFifo.Count > 0 then
+  else if FMouse.Status <> 0 then
   begin
-    p := FFifo.Pop;
-    result := p^;
-    Dispose(p);
-  end
-  else
-    result := #0;
-end;
-
-procedure TKeyFifoClass.inthandler21(esp: integer);
-var
-  data: Char;
-  key: TKeyFifoClass;
-begin
-  io_out8(PIC0_OCW2, $61);
-  data := Char(io_in8(PORT_KEYDAT));
-  key:=TKeyFifoClass.Create;
-  try
-    key.fifo8_push(data);
-  finally
-    key.Free;
+    c := FMouse.fifo8_pop;
+    io_sti;
+    FScreen.boxfill8(col8_008484, 32, 16, 47, 31);
+    FFont.putfont8(32, 16, c);
   end;
-end;
-
-function TKeyFifoClass.GetCount: integer;
-begin
-  result:=FFifo.Count;
 end;

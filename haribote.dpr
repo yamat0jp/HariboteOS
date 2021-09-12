@@ -33,7 +33,7 @@ var
   c: Char;
 begin
   hdr := Pointer(0);
-  // init_gdtidt;
+  init_gdtidt;
   init_pic;
   init_palette;
   font := TFontClass.Create;
@@ -43,7 +43,7 @@ begin
   try
     mouse.init_mouse_cursor8(nil);
     screen.init_screen8;
-    font.putfont8_asc(0, 0, 'masasi fuke');
+    font.putfonts8_asc(0, 0, 'masasi fuke');
     font.color := COL8_FFFFFF;
     while True do
     begin
@@ -55,7 +55,7 @@ begin
         c:=key.fifo8_pop;
         io_stihlt;
         screen.boxfill8(COL8_008484, 0, 16, 15, 31);
-        font.putfont8_asc(0, 16, @c);
+        font.putfonts8_asc(0, 16, @c);
       end;
     end;
   finally

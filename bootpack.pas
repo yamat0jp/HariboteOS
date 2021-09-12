@@ -24,34 +24,33 @@ procedure init_gdtidt; stdcall;
 var
   gdt: ^TSegment;
   idt: ^TGate;
-  gate: ^TGate;
-  i: integer;
+  i, p: integer;
 begin
   gdt := Pointer(ADR_GDT);
   idt := Pointer(ADR_IDT);
-  for i := 0 to 8192 do
+  for i := 0 to LIMIT_GDT do
   begin
-    inc(PByte(gdt), i);
+    inc(PByte(gdt));
     set_segmdesc(gdt^, 0, 0, 0);
   end;
   inc(PByte(gdt));
   set_segmdesc(gdt^, $FFFFFFFF, $00000000, AR_DATA32_RW);
-  inc(PByte(gdt), 2);
+  inc(PByte(gdt));
   set_segmdesc(gdt^, LIMIT_BOTPAK, ADR_BOTPAK, AR_CODE32_ER);
   load_gdtr(LIMIT_GDT, ADR_GDT);
+  p:=integer(idt);
   for i := 0 to LIMIT_IDT do
   begin
     inc(PByte(idt), i);
     set_gatedesc(idt^, 0, 0, 0);
   end;
-  // load_idtr(LIMIT_IDT, ADR_IDT);
-
-  gate := Pointer(integer(idt) + $21);
-  set_gatedesc(gate^, cardinal(@asm_inthandler21), 2 * 8, AR_INTGATE32);
-  gate := Pointer(integer(idt) + $27);
-  set_gatedesc(gate^, cardinal(@asm_inthandler27), 2 * 8, AR_INTGATE32);
-  gate := Pointer(integer(idt) + $2C);
-  set_gatedesc(gate^, cardinal(@asm_inthandler2c), 2 * 8, AR_INTGATE32);
+  load_idtr(LIMIT_IDT, ADR_IDT);
+  idt := Pointer(p + $21);
+  set_gatedesc(idt^, cardinal(@asm_inthandler21), 2 * 8, AR_INTGATE32);
+  idt := Pointer(p + $27);
+  set_gatedesc(idt^, cardinal(@asm_inthandler27), 2 * 8, AR_INTGATE32);
+  idt := Pointer(p + $2C);
+  set_gatedesc(idt^, cardinal(@asm_inthandler2c), 2 * 8, AR_INTGATE32);
 end;
 
 procedure write_mem8(addr, data: integer); stdcall;
