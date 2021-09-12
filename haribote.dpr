@@ -5,9 +5,11 @@ program haribote;
 
 uses
   System.Classes,
-  ShellAPI;
+  ShellAPI,
+  Contnrs;
 
 {$I asmhead}
+{$I naskfunc}
 {$I objclasses}
 procedure harimain; stdcall; forward;
 
@@ -18,7 +20,6 @@ asm
   hlt
 end;
 
-{$I naskfunc}
 {$I graph}
 {$I bootpack}
 
@@ -27,22 +28,42 @@ var
   hdr: ^TMultiBoot_hdr;
   font: TFontClass;
   screen: TScreenClass;
+  mouse: TMouseClass;
+  key: TKeyFifoClass;
+  c: Char;
 begin
-  hdr:=Pointer(0);
+  hdr := Pointer(0);
   // init_gdtidt;
   init_pic;
   init_palette;
   font := TFontClass.Create;
   screen := TScreenClass.Create;
+  mouse := TMouseClass.Create;
+  key := TKeyFifoClass.Create;
   try
+    mouse.init_mouse_cursor8(nil);
     screen.init_screen8;
     font.putfont8_asc(0, 0, 'masasi fuke');
+    font.color := COL8_FFFFFF;
+    while True do
+    begin
+      io_cli;
+      if key.Count = 0 then
+        io_stihlt
+      else
+      begin
+        c:=key.fifo8_pop;
+        io_stihlt;
+        screen.boxfill8(COL8_008484, 0, 16, 15, 31);
+        font.putfont8_asc(0, 16, @c);
+      end;
+    end;
   finally
     font.Free;
+    key.Free;
     screen.Free;
+    mouse.Free;
   end;
-  while True do
-    io_hlt;
 end;
 
 procedure loader_end; stdcall;

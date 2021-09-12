@@ -18,7 +18,7 @@ type
     FXSize, FYSize: integer;
   public
     constructor Create;
-    procedure boxfill8(c, x0, y0, x1, y1: integer); stdcall;
+    procedure boxfill8(color: Byte; x0, y0, x1, y1: integer); stdcall;
     procedure init_screen8; stdcall;
   end;
 
@@ -35,6 +35,21 @@ type
     constructor Create;
     property Width: integer read FWid write FWid;
     property Height: integer read FHei write FHei;
+  end;
+
+  TKeyFifoClass = class
+  private
+    FFifo: TQueue;
+    FSize: integer;
+    procedure inthandler21(esp: integer);
+    function GetCount: integer;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function fifo8_push(data: Char): Boolean; stdcall;
+    function fifo8_pop: Char; stdcall;
+    property Size: integer read FSize write FSize;
+    property Count: integer read GetCount;
   end;
 
   { TFontClass }
@@ -109,13 +124,13 @@ begin
   FYSize := hdr^.Height;
 end;
 
-procedure TScreenClass.boxfill8(c, x0, y0, x1, y1: integer); stdcall;
+procedure TScreenClass.boxfill8(color: Byte; x0, y0, x1, y1: integer); stdcall;
 var
   x, y: integer;
 begin
   for y := y0 to y1 do
     for x := x0 to x1 do
-      FVram[y * FXSize + x] := Byte(c);
+      FVram[y * FXSize + x] := Byte(color);
 end;
 
 procedure TScreenClass.init_screen8; stdcall;
@@ -219,4 +234,67 @@ begin
   for y := 0 to FYSize - 1 do
     for x := 0 to FXSize - 1 do
       FVram[(py + y) * FXSize + px + x] := buf[y * bxsize + x];
+end;
+
+{ KeyFifoClass }
+
+constructor TKeyFifoClass.Create;
+begin
+  FFifo := TQueue.Create;
+  FSize := 32;
+end;
+
+destructor TKeyFifoClass.Destroy;
+begin
+  FFifo.Free;
+  inherited;
+end;
+
+function TKeyFifoClass.fifo8_push(data: Char): Boolean; stdcall;
+var
+  p: PChar;
+begin
+  if FFifo.Count < FSize then
+  begin
+    New(p);
+    p^ := data;
+    FFifo.Push(p);
+    result := true;
+  end
+  else
+    result := false;
+end;
+
+function TKeyFifoClass.fifo8_pop: Char; stdcall;
+var
+  p: PCHar;
+begin
+  if FFifo.Count > 0 then
+  begin
+    p := FFifo.Pop;
+    result := p^;
+    Dispose(p);
+  end
+  else
+    result := #0;
+end;
+
+procedure TKeyFifoClass.inthandler21(esp: integer);
+var
+  data: Char;
+  key: TKeyFifoClass;
+begin
+  io_out8(PIC0_OCW2, $61);
+  data := Char(io_in8(PORT_KEYDAT));
+  key:=TKeyFifoClass.Create;
+  try
+    key.fifo8_push(data);
+  finally
+    key.Free;
+  end;
+end;
+
+function TKeyFifoClass.GetCount: integer;
+begin
+  result:=FFifo.Count;
 end;

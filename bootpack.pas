@@ -81,18 +81,3 @@ begin
   io_out8(pic1_imr, $FF);
 end;
 
-procedure inthandler21(esp: integer); stdcall;
-var
-  f: TFontClass;
-  hdr: ^TMultiboot_hdr;
-begin
-  hdr := Pointer(0);
-  f := TFontClass.Create;
-  try
-    f.putfont8_asc(0, 0, 'test I/O');
-  finally
-    f.Free;
-  end;
-  while True do
-    io_hlt;
-end;
