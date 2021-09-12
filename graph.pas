@@ -1,10 +1,9 @@
-function vram: PByte; stdcall;
+function screen: PByte; stdcall;
 begin
-  // result:=Pointer($a0000);
-  result := Pointer($E0000000);
+  result:=Pointer($a0000);
 end;
 
-procedure boxfill8(xsize: integer; b: Byte; x0, y0, x1, y1: integer); stdcall;
+procedure boxfill8(vram: PByte; xsize: integer; b: Byte; x0, y0, x1, y1: integer); stdcall;
 var
   x, y: integer;
 begin
@@ -13,7 +12,7 @@ begin
       vram[y * xsize + x] := b;
 end;
 
-procedure putfont8(xsize, x, y: integer; color: Byte; font: Pointer); stdcall;
+procedure putfont8(vram: PByte; xsize, x, y: integer; color: Byte; font: Pointer); stdcall;
 type
   TFont = array [0 .. 16] of Byte;
 var
@@ -46,14 +45,14 @@ begin
   end;
 end;
 
-procedure putfont8_asc(xsize, x, y: integer; b: Byte; s, t: PChar); stdcall;
+procedure putfont8_asc(vram: PByte; xsize, x, y: integer; b: Byte; s, t: PChar); stdcall;
 var
   i: integer;
 begin
   i := 0;
   while s[i] <> '' do
   begin
-    putfont8(xsize, x, y, b, t + i * 16);
+    putfont8(vram, xsize, x, y, b, t + i * 16);
     inc(x, 8);
     inc(i);
   end;
@@ -78,7 +77,7 @@ end;
 
 procedure init_palette; stdcall;
 var
-  table_rgb: array [0 .. 16 * 3] of Byte;
+  table_rgb: array [0 .. 15 * 3] of Byte;
   procedure setting(data: array of Byte);
   var
     i: integer;
@@ -107,29 +106,23 @@ begin
   set_palette(1, 16, @table_rgb);
 end;
 
-procedure init_screen8(xsize, ysize: integer); stdcall;
-var
-  i: integer;
+procedure init_screen8(vram: PByte; xsize, ysize: integer); stdcall;
 begin
-  for i := 0 to $FFFF do
-    vram[i] := blue;
+  boxfill8(vram, xsize, col8_008484, 0, 0, xsize - 1, ysize - 29);
+  boxfill8(vram, xsize, col8_c6c6c6, 0, ysize - 28, xsize - 1, ysize - 28);
+  boxfill8(vram, xsize, col8_ffffff, 0, ysize - 27, xsize - 1, ysize - 27);
+  boxfill8(vram, xsize, col8_c6c6c6, 0, ysize - 26, xsize - 1, ysize - 1);
 
-  boxfill8(xsize, col8_008484, 0, 0, xsize - 1, ysize - 29);
-  boxfill8(xsize, col8_c6c6c6, 0, ysize - 28, xsize - 1, ysize - 28);
-  boxfill8(xsize, col8_ffffff, 0, ysize - 27, xsize - 1, ysize - 27);
-  boxfill8(xsize, col8_c6c6c6, 0, ysize - 26, xsize - 1, ysize - 1);
+  boxfill8(vram, xsize, col8_ffffff, 3, ysize - 24, 59, ysize - 24);
+  boxfill8(vram, xsize, col8_ffffff, 2, ysize - 24, 2, ysize - 4);
+  boxfill8(vram, xsize, col8_848484, 3, ysize - 4, 59, ysize - 4);
+  boxfill8(vram, xsize, col8_848484, 59, ysize - 23, 59, ysize - 5);
+  boxfill8(vram, xsize, col8_000000, 2, ysize - 3, 59, ysize - 3);
+  boxfill8(vram, xsize, col8_000000, 60, ysize - 24, 60, ysize - 3);
 
-  boxfill8(xsize, col8_ffffff, 3, ysize - 24, 59, ysize - 24);
-  boxfill8(xsize, col8_ffffff, 2, ysize - 24, 2, ysize - 4);
-  boxfill8(xsize, col8_848484, 3, ysize - 4, 59, ysize - 4);
-  boxfill8(xsize, col8_848484, 59, ysize - 23, 59, ysize - 5);
-  boxfill8(xsize, col8_000000, 2, ysize - 3, 59, ysize - 3);
-  boxfill8(xsize, col8_000000, 60, ysize - 24, 60, ysize - 3);
-
-  boxfill8(xsize, col8_848484, xsize - 47, ysize - 24, xsize - 4, ysize - 24);
-  boxfill8(xsize, col8_848484, xsize - 47, ysize - 23, xsize - 47, ysize - 4);
-  boxfill8(xsize, col8_ffffff, xsize - 47, ysize - 3, xsize - 4, ysize - 3);
-  boxfill8(xsize, col8_ffffff, xsize - 3, ysize - 24, xsize - 3, ysize - 3);
-
-  // putfont8(xsize, 8, 8, 100, Pointer($0000C520 + 1));
+  boxfill8(vram, xsize, col8_848484, xsize - 47, ysize - 24, xsize - 4, ysize - 24);
+  boxfill8(vram, xsize, col8_848484, xsize - 47, ysize - 23, xsize - 47, ysize - 4);
+  boxfill8(vram, xsize, col8_ffffff, xsize - 47, ysize - 3, xsize - 4, ysize - 3);
+  boxfill8(vram, xsize, col8_ffffff, xsize - 3, ysize - 24, xsize - 3, ysize - 3);
+  putfont8(vram, xsize, 8, 8, 100, Pointer($0000C520 + 1));
 end;

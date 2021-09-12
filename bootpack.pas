@@ -79,7 +79,7 @@ var
   info: ^TBootInfo;
 begin
   info := Pointer(ADR_BOOTINFO);
-  putfont8_asc(info.scrnx, 0, 0, col8_ffffff,
+  putfont8_asc(screen, info.scrnx, 0, 0, col8_ffffff,
     'INT 21 (IRQ-1) : PS/2 keyboard', info.hankaku);
   while True do
     io_hlt;

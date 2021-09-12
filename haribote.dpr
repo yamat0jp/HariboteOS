@@ -35,8 +35,7 @@ begin
   init_pic;
 
   init_palette;
-  init_screen8(xsize, ysize);
-
+  init_screen8(screen, xsize, ysize);
   while True do
     io_hlt;
 end;
