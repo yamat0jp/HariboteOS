@@ -86,10 +86,10 @@ var
   f: TFontClass;
   hdr: ^TMultiboot_hdr;
 begin
-  hdr:=Pointer(0);
-  f:=TFontClass.Create;
+  hdr := Pointer(0);
+  f := TFontClass.Create;
   try
-    f.putfont8_asc(0,0,Blue,'test I/O');
+    f.putfont8_asc(0, 0, 'test I/O');
   finally
     f.Free;
   end;

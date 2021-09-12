@@ -35,8 +35,8 @@ begin
   font := TFontClass.Create;
   screen := TScreenClass.Create;
   try
-    font.putfont8_asc(0, 0, white, 'masasi fuke');
-    screen.init_screen8(hdr^.width, hdr^.height);
+    screen.init_screen8;
+    font.putfont8_asc(0, 0, 'masasi fuke');
   finally
     font.Free;
     screen.Free;
@@ -78,10 +78,10 @@ begin
     multiboot_hdr.bss_end_addr := cardinal(image_base) + image_size;
     multiboot_hdr.entry_addr := image_base + entry_addr;
     multiboot_hdr.mode_type := 0;
-    multiboot_hdr.width := 256;
-    multiboot_hdr.height := 256;
+    multiboot_hdr.width := 360;
+    multiboot_hdr.height := 280;
     multiboot_hdr.depth := 0;
-    multiboot_hdr.screen_addr := Pointer($A0000);
+    multiboot_hdr.screen_addr := Pointer($B8000);
 
     MemoryStream.Position := SizeOf(multiboot_hdr);
     dwSize := entry_addr - MemoryStream.Position;
