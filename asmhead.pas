@@ -57,3 +57,10 @@ type
     dw_count, access_right: Int16;
     offset_hight: Int16;
   end;
+
+  TMultiboot_hdr = packed record
+    magic, flags, checksum: cardinal;
+    header_addr, load_addr, load_end_addr, bss_end_addr, entry_addr: cardinal;
+    mode_type: cardinal;
+    width, height, depth: cardinal;
+  end;

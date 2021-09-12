@@ -31,17 +31,17 @@ begin
   idt := Pointer($0026F800);
   for i := 0 to 8192 do
   begin
-    inc(integer(gdt), i);
+    inc(PByte(gdt), i);
     set_segmdesc(gdt^, 0, 0, 0);
   end;
-  inc(integer(gdt));
+  inc(PByte(gdt));
   set_segmdesc(gdt^, $FFFFFFFF, $00000000, $4092);
-  inc(integer(gdt), 2);
+  inc(PByte(gdt), 2);
   set_segmdesc(gdt^, $0007FFFF, $00280000, $409A);
   load_gdtr($FFFF, $00270000);
   for i := 0 to 256 do
   begin
-    inc(integer(idt), i);
+    inc(PByte(idt), i);
     set_gatedesc(idt^, 0, 0, 0);
   end;
   load_idtr($07FF, $0026F800);
@@ -79,7 +79,7 @@ var
   info: ^TBootInfo;
 begin
   info := Pointer(ADR_BOOTINFO);
-  putfont8_asc(info.vram, info.scrnx, 0, 0, col8_ffffff,
+  putfont8_asc(info.scrnx, 0, 0, col8_ffffff,
     'INT 21 (IRQ-1) : PS/2 keyboard', info.hankaku);
   while True do
     io_hlt;

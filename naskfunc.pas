@@ -71,18 +71,18 @@ asm
 end;
 
 function io_load_eflags: integer; stdcall;
-asm
+asm{
   pushfd
   pop eax
-  ret
+  ret}
 end;
 
 function io_store_eflags(port: integer): integer; stdcall;
-asm
+asm{
   mov eax,  port
   push  eax
   popfd
-  ret
+  ret}
 end;
 
 procedure load_gdtr(limit, addr: integer);
@@ -102,7 +102,7 @@ asm
 end;
 
 procedure asm_inthandler21; stdcall;
-asm
+asm{
   push  es
   push  ds
   pushad
@@ -116,7 +116,7 @@ asm
   popad
   pop ds
   pop es
-  iretd
+  iretd}
 end;
 
 
