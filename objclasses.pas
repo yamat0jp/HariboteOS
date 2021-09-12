@@ -33,6 +33,8 @@ type
     procedure putblock8_8(px, py: integer; buf: PByte; bxsize: integer);
   public
     constructor Create;
+    property Width: integer read FWid write FWid;
+    property Height: integer read FHei write FHei;
   end;
 
   { TFontClass }
@@ -44,8 +46,8 @@ begin
   bootinfo := Pointer(0);
   FVram := PByte(bootinfo^.screen_addr);
   FFont := bootinfo^.font_addr;
-  FXSize := bootinfo^.width;
-  FYSize := bootinfo^.height;
+  FXSize := bootinfo^.Width;
+  FYSize := bootinfo^.Height;
   FColor := Blue;
 end;
 
@@ -103,8 +105,8 @@ var
 begin
   hdr := Pointer(0);
   FVram := hdr^.screen_addr;
-  FXSize := hdr^.width;
-  FYSize := hdr^.height;
+  FXSize := hdr^.Width;
+  FYSize := hdr^.Height;
 end;
 
 procedure TScreenClass.boxfill8(c, x0, y0, x1, y1: integer); stdcall;
@@ -144,8 +146,10 @@ var
 begin
   hdr := Pointer(0);
   FVram := hdr^.screen_addr;
-  FXSize := hdr^.width;
-  FYSize := hdr^.height;
+  FXSize := hdr^.Width;
+  FYSize := hdr^.Height;
+  FWid := 16;
+  FHei := 16;
   init_mouse_cursor8(nil);
 end;
 
@@ -166,42 +170,46 @@ var
   end;
 
 begin
-  build([ //
-    '**************..', //
-    '*00000000000*...', //
-    '*0000000000*....', //
-    '*000000000*.....', //
-    '*00000000*......', //
-    '*0000000*.......', //
-    '*0000000*.......', //
-    '*00000000*......', //
-    '*0000**000*.....', //
-    '*000*..*000*....', //
-    '*00*....*000*...', //
-    '*0*......*000*..', //
-    '**........*000*.', //
-    '*..........*000*', //
-    '............*00*', //
-    '.............***']);
   if cursor = nil then
-    cursor := FDefault;
-  x:=0;
-  y:=0;
+  begin
+    build([ //
+      '**************..', //
+      '*00000000000*...', //
+      '*0000000000*....', //
+      '*000000000*.....', //
+      '*00000000*......', //
+      '*0000000*.......', //
+      '*0000000*.......', //
+      '*00000000*......', //
+      '*0000**000*.....', //
+      '*000*..*000*....', //
+      '*00*....*000*...', //
+      '*0*......*000*..', //
+      '**........*000*.', //
+      '*..........*000*', //
+      '............*00*', //
+      '.............***']);
+    FCursor := FDefault;
+  end
+  else
+    FCursor := cursor;
+  x := 0;
+  y := 0;
   repeat
-    case cursor[x] of
+    case FCursor[x] of
       '*':
-        FMouse[16 * y + x] := col8_000000;
+        FMouse[FWid * y + x] := col8_000000;
       '0':
-        FMouse[16 * y + x] := col8_ffffff;
+        FMouse[FWid * y + x] := col8_ffffff;
       '.':
-        FMouse[16 * y + x] := Yellow;
+        FMouse[FWid * y + x] := Yellow;
     end;
-    if x > 15 then
+    if x >= FWid then
     begin
       x := 0;
       inc(y);
     end;
-  until y > 15;
+  until y >= FHei;
 end;
 
 procedure TMouseClass.putblock8_8(px, py: integer; buf: PByte; bxsize: integer);
