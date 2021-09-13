@@ -1,14 +1,43 @@
 type
+  TFifoQueue = class
+  private
+    FCount: integer;
+    FSource: array [0 .. 255] of PChar;
+  public
+    procedure Push(item: PChar);
+    function Pop: PChar;
+    property Count: integer read FCount;
+  end;
+
+  TMemInfo = record
+    addr, Size: integer;
+  end;
+
+  TSheetList = class
+  private
+    FCount: integer;
+    FSource: array [0 .. 255] of TMemInfo;
+    function GetItem(X: integer): TMemInfo;
+    procedure SetItem(X: integer; const Value: TMemInfo);
+  public
+    procedure Add(item: TMemInfo);
+    procedure Move(id, num: integer);
+    procedure Insert(id: integer; item: TMemInfo);
+    procedure Delete(id: integer);
+    property item[X: integer]: TMemInfo read GetItem write SetItem; default;
+    property Count: integer read FCount;
+  end;
+
   TFontClass = class
   private
     FVram: PByte;
     FFont: Pointer;
     FXSize, FYSize: integer;
     FColor: Byte;
-    procedure putfont8(x, y: integer; c: Char);
+    procedure putfont8(X, y: integer; c: Char);
   public
     constructor Create;
-    procedure putfonts8_asc(x, y: integer; str: PChar); stdcall;
+    procedure putfonts8_asc(X, y: integer; str: PChar); stdcall;
     property color: Byte read FColor write FColor;
   end;
 
@@ -24,7 +53,7 @@ type
 
   TFifoClass = class
   protected
-    FFifo: TQueue;
+    FFifo: TFifoQueue;
     FSize: integer;
     procedure wait_KBC_sendready;
     function GetStatus: integer;
@@ -55,7 +84,7 @@ type
     FMouse: PByte;
     procedure init_mouse_cursor8(cursor: PChar);
     procedure putblock8_8(px, py: integer; buf: PByte; bxsize: integer);
-    procedure inthandler2c(esp: integer); stdcall;
+    procedure inthandler2c(esp: integer);
   public
     constructor Create;
     property Width: integer read FWid write FWid;
@@ -65,25 +94,20 @@ type
   TMemMan = class
   const
     MEMMAN_FREES = 4090;
-
-  type
-    TMemInfo = record
-      addr, Size: integer;
-    end;
   private
     FLostSize, FLosts: integer;
-    FMem: TList<TMemInfo>;
-    function GetStrings(x: integer): TMemInfo;
-    procedure SetStrings(x: integer; const Value: TMemInfo);
+    FMem: TSheetList;
+    function GetStrings(X: integer): TMemInfo;
+    procedure SetStrings(X: integer; const Value: TMemInfo);
     function alloc(Size: integer): Pointer;
-    procedure delete(addr, Size: integer);
+    procedure Delete(addr, Size: integer);
   public
     constructor Create;
     destructor Destroy; override;
     function total: integer; stdcall;
     function alloc_4k(Size: integer): Pointer; stdcall;
     procedure delete_4k(addr, Size: integer); stdcall;
-    property Strings[x: integer]: TMemInfo read GetStrings
+    property Strings[X: integer]: TMemInfo read GetStrings
       write SetStrings; default;
   end;
 
@@ -104,6 +128,7 @@ type
   end;
 
   TSheet = record
+    buf: PByte;
     bxsize, bysize: integer;
     vx, vy: integer;
     col_inv: integer;
@@ -111,9 +136,6 @@ type
   end;
 
   TSHTCtlClass = class
-  const
-    MAX_SHEETS = 255;
-    SHEET_USE = 1;
   private
     function GetHeight: integer;
   protected
@@ -133,7 +155,80 @@ type
     property Height: integer read GetHeight;
   end;
 
-  { TFontClass }
+  { TFifoQueue }
+
+procedure TFifoQueue.Push(item: PWideChar);
+begin
+  FSource[FCount] := item;
+  inc(FCount);
+end;
+
+function TFifoQueue.Pop;
+var
+  i: integer;
+begin
+  dec(FCount);
+  result := FSource[0];
+  for i := 0 to FCount - 1 do
+    FSource[i] := FSource[i + 1];
+end;
+
+{ TSheetList }
+
+procedure TSheetList.SetItem(X: integer; const Value: TMemInfo);
+begin
+  FSource[X] := Value;
+end;
+
+procedure TSheetList.Add(item: TMemInfo);
+begin
+  if FCount < 255 then
+  begin
+    FSource[FCount] := item;
+    inc(FCount);
+  end;
+end;
+
+procedure TSheetList.Move(id: integer; num: integer);
+var
+  tmp: TMemInfo;
+  i: integer;
+begin
+  tmp := FSource[id];
+  if id < num then
+    for i := id to num - 1 do
+      FSource[i] := FSource[i + 1]
+  else
+    for i := id downto num - 1 do
+      FSource[i] := FSource[i - 1];
+  FSource[num] := tmp;
+end;
+
+procedure TSheetList.Insert(id: integer; item: TMemInfo);
+begin
+  Add(item);
+  Move(FCount - 1, id);
+end;
+
+procedure TSheetList.Delete(id: integer);
+var
+  i: integer;
+begin
+  if id < FCount then
+  begin
+    dec(FCount);
+    for i := id to FCount - 1 do
+      FSource[i] := FSource[i + 1];
+  end;
+end;
+
+function TSheetList.GetItem(X: integer): TMemInfo;
+begin
+  if (0 < X) and (X < FCount) then
+    result := FSource[X];
+end;
+
+{ TFontClass }
 
 constructor TFontClass.Create;
 var
@@ -148,7 +243,7 @@ begin
   FColor := Blue;
 end;
 
-procedure TFontClass.putfont8(x, y: integer; c: Char);
+procedure TFontClass.putfont8(X, y: integer; c: Char);
 type
   TFont = array [0 .. 16] of Byte;
 var
@@ -160,7 +255,7 @@ begin
   pdata := FFont;
   for i := 0 to 16 do
   begin
-    p := FVram + (y + i) * FXSize + x;
+    p := FVram + (y + i) * FXSize + X;
     b := pdata^[i];
     if b and $80 <> 0 then
       p[0] := FColor;
@@ -181,15 +276,15 @@ begin
   end;
 end;
 
-procedure TFontClass.putfonts8_asc(x, y: integer; str: PChar); stdcall;
+procedure TFontClass.putfonts8_asc(X, y: integer; str: PChar); stdcall;
 var
   i: integer;
 begin
   i := 0;
   while str[i] <> '' do
   begin
-    putfont8(x, y, str[i]);
-    inc(x, 8);
+    putfont8(X, y, str[i]);
+    inc(X, 8);
     inc(i);
   end;
 end;
@@ -209,11 +304,11 @@ end;
 
 procedure TScreenClass.boxfill8(color: Byte; x0, y0, x1, y1: integer); stdcall;
 var
-  x, y: integer;
+  X, y: integer;
 begin
   for y := y0 to y1 do
-    for x := x0 to x1 do
-      FVram[y * FXSize + x] := Byte(color);
+    for X := x0 to x1 do
+      FVram[y * FXSize + X] := Byte(color);
 end;
 
 procedure TScreenClass.init_screen8; stdcall;
@@ -241,7 +336,7 @@ end;
 constructor TFifoClass.Create;
 begin
   inherited;
-  FFifo := TQueue.Create;
+  FFifo := TFifoQueue.Create;
 end;
 
 destructor TFifoClass.Destroy;
@@ -339,7 +434,7 @@ end;
 
 procedure TMouseClass.init_mouse_cursor8(cursor: PChar);
 var
-  x, y: integer;
+  X, y: integer;
   procedure build(data: array of string);
   var
     i, j, k: integer;
@@ -377,20 +472,20 @@ begin
   end
   else
     FCursor := cursor;
-  x := 0;
+  X := 0;
   y := 0;
   repeat
-    case FCursor[x] of
+    case FCursor[X] of
       '*':
-        FMouse[FWid * y + x] := col8_000000;
+        FMouse[FWid * y + X] := col8_000000;
       '0':
-        FMouse[FWid * y + x] := col8_ffffff;
+        FMouse[FWid * y + X] := col8_ffffff;
       '.':
-        FMouse[FWid * y + x] := Yellow;
+        FMouse[FWid * y + X] := Yellow;
     end;
-    if x >= FWid then
+    if X >= FWid then
     begin
-      x := 0;
+      X := 0;
       inc(y);
     end;
   until y >= FHei;
@@ -398,14 +493,14 @@ end;
 
 procedure TMouseClass.putblock8_8(px, py: integer; buf: PByte; bxsize: integer);
 var
-  x, y: integer;
+  X, y: integer;
 begin
   for y := 0 to FYSize - 1 do
-    for x := 0 to FXSize - 1 do
-      FVram[(py + y) * FXSize + px + x] := buf[y * bxsize + x];
+    for X := 0 to FXSize - 1 do
+      FVram[(py + y) * FXSize + px + X] := buf[y * bxsize + X];
 end;
 
-procedure TMouseClass.inthandler2c(esp: integer); stdcall;
+procedure TMouseClass.inthandler2c(esp: integer);
 var
   data: Byte;
 begin
@@ -465,16 +560,16 @@ end;
 
 { TMemMan }
 
-function TMemMan.GetStrings(x: integer): TMemInfo;
+function TMemMan.GetStrings(X: integer): TMemInfo;
 begin
-  if (0 <= x) and (x <= MEMMAN_FREES) then
-    result := FMem[x];
+  if (0 <= X) and (X <= MEMMAN_FREES) then
+    result := FMem[X];
 end;
 
-procedure TMemMan.SetStrings(x: integer; const Value: TMemInfo);
+procedure TMemMan.SetStrings(X: integer; const Value: TMemInfo);
 begin
-  if (0 <= x) and (x <= MEMMAN_FREES) then
-    FMem[x] := Value;
+  if (0 <= X) and (X <= MEMMAN_FREES) then
+    FMem[X] := Value;
 end;
 
 constructor TMemMan.Create;
@@ -504,7 +599,7 @@ begin
       inc(rec.addr, Size);
       dec(rec.Size, Size);
       if FMem[i].Size = 0 then
-        FMem.delete(i);
+        FMem.Delete(i);
     end;
 end;
 
@@ -517,7 +612,7 @@ begin
     inc(result, FMem[i].Size);
 end;
 
-procedure TMemMan.delete(addr, Size: integer);
+procedure TMemMan.Delete(addr, Size: integer);
 var
   i: integer;
   rec: TMemInfo;
@@ -535,7 +630,7 @@ begin
           rec := FMem[i - 1];
           inc(rec.Size, FMem[i].Size);
           FMem[i - 1] := rec;
-          FMem.delete(i);
+          FMem.Delete(i);
         end;
       end
       else if addr + Size = FMem[i].addr then
@@ -563,7 +658,7 @@ end;
 procedure TMemMan.delete_4k(addr: integer; Size: integer);
 begin
   Size := (Size + $FFF) and $FFFFF000;
-  delete(addr, Size);
+  Delete(addr, Size);
 end;
 
 { TSHTCtlClass }
@@ -584,16 +679,27 @@ begin
     FSheets.Add(sht);
     sht^.bxsize := FXSize;
     sht^.bysize := FYSize;
+    sht^.col_inv := 0;
     sht^.flags := 0;
+  end;
+  for i := 0 to MAX_SHEETS do
+  begin
+    sht := FSheets[i];
+    sht^.buf := FMem.alloc(100);
   end;
 end;
 
 destructor TSHTCtlClass.Destroy;
 var
   i: integer;
+  sht: ^TSheet;
 begin
   for i := 0 to FSheets.Count - 1 do
-    FMem.delete(integer(FSheets[i]), SizeOf(TSheet));
+  begin
+    sht := FSheets[i];
+    FMem.Delete(integer(sht^.buf), 100);
+    FMem.Delete(integer(sht), SizeOf(TSheet));
+  end;
   FMem.Free;
   inherited;
 end;
@@ -603,20 +709,20 @@ var
   i: integer;
   sht: ^TSheet;
   c: Byte;
-  x, y, xx, yy: integer;
+  X, y, xx, yy: integer;
 begin
   for i := Height - 1 downto 0 do
   begin
     sht := FSheets[i];
-    for y := 0 to sht.bysize do
+    for y := 0 to sht^.bysize do
     begin
-      yy := sht.vy + y;
-      for x := 0 to sht.bxsize do
+      yy := sht^.vy + y;
+      for X := 0 to sht^.bxsize do
       begin
-        xx := sht.vx + x;
-        c := buf[y * sht.bxsize + x];
-        if c <> sht.col_inv then
-          FVram[yy * sht.bxsize + xx] := c;
+        xx := sht^.vx + X;
+        c := sht^.buf[y * sht.bxsize + X];
+        if c <> sht^.col_inv then
+          FVram[yy * sht^.bxsize + xx] := c;
       end;
     end;
   end;
