@@ -78,6 +78,29 @@ type
     property Mouse: TMouseClass read FMouse;
   end;
 
+  TMemMan = class
+  const
+    MEMMAN_FREES = 4090;
+
+  type
+    TMemInfo = record
+      addr, Size: integer;
+    end;
+  private
+    FLostSize, FLosts: integer;
+    FMem: TList<TMemInfo>;
+    function GetStrings(x: integer): TMemInfo;
+    procedure SetStrings(x: integer; const Value: TMemInfo);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function total: integer; stdcall;
+    function alloc(Size: integer): Pointer; stdcall;
+    procedure delete(addr, Size: integer); stdcall;
+    property Strings[x: integer]: TMemInfo read GetStrings
+      write SetStrings; default;
+  end;
+
   { TFontClass }
 
 constructor TFontClass.Create;
@@ -369,7 +392,11 @@ begin
   FScreen := TScreenClass.Create;
   FKeyboard := TKeyFifoClass.Create;
   FMouse := TMouseClass.Create;
+  FScreen.init_screen8;
+  FFont.putfonts8_asc(0, 0, 'masasi fuke');
+  FMouse.init_mouse_cursor8(nil);
   fifo8_init;
+  FMem:=TMemMan.Create;
 end;
 
 destructor TFrameWork.Destroy;
@@ -378,6 +405,7 @@ begin
   FScreen.Free;
   FKeyboard.Free;
   FMouse.Free;
+  FMem.Free;
   inherited;
 end;
 
@@ -403,4 +431,95 @@ begin
     FScreen.boxfill8(col8_008484, 32, 16, 47, 31);
     FFont.putfont8(32, 16, c);
   end;
+end;
+
+{ TMemMan }
+
+function TMemMan.GetStrings(x: integer): TMemInfo;
+begin
+  if (0 <= x) and (x <= MEMMAN_FREES) then
+    result := FMem[x];
+end;
+
+procedure TMemMan.SetStrings(x: integer; const Value: TMemInfo);
+begin
+  if (0 <= x) and (x <= MEMMAN_FREES) then
+    FMem[x] := Value;
+end;
+
+constructor TMemMan.Create;
+begin
+  inherited;
+  FLostSize := 0;
+  FLosts := 0;
+end;
+
+destructor TMemMan.Destroy;
+begin
+  FMem.Free;
+  inherited;
+end;
+
+function TMemMan.alloc(Size: integer): Pointer; stdcall;
+var
+  i: integer;
+  rec: TMemInfo;
+begin
+  result := Pointer(0);
+  for i := 0 to FMem.Count - 1 do
+    if FMem[i].Size >= Size then
+    begin
+      rec := FMem[i];
+      result := Pointer(rec.addr);
+      inc(rec.addr, Size);
+      dec(rec.Size, Size);
+      if FMem[i].Size = 0 then
+        FMem.delete(i);
+    end;
+end;
+
+function TMemMan.total: integer; stdcall;
+var
+  i: integer;
+begin
+  result := 0;
+  for i := 0 to FMem.Count - 1 do
+    inc(result, FMem[i].Size);
+end;
+
+procedure TMemMan.delete(addr, Size: integer); stdcall;
+var
+  i: integer;
+  rec: TMemInfo;
+begin
+  for i := 0 to FMem.Count - 1 do
+    if FMem[i].addr > addr then
+    begin
+      if FMem[i - 1].addr + FMem[i - 1].Size = addr then
+      begin
+        rec := FMem[i - 1];
+        inc(rec.Size, Size);
+        FMem[i - 1] := rec;
+        if addr + Size < FMem[i].addr then
+        begin
+          rec := FMem[i - 1];
+          inc(rec.Size, FMem[i].Size);
+          FMem[i - 1] := rec;
+          FMem.delete(i);
+        end;
+      end
+      else if addr + Size = FMem[i].addr then
+      begin
+        rec.addr := addr;
+        rec.Size := FMem[i].Size + Size;
+        FMem[i] := rec;
+      end
+      else
+      begin
+        rec.addr := addr;
+        rec.Size := Size;
+        FMem.Insert(i, rec);
+      end;
+      break;
+    end;
 end;

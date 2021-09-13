@@ -102,7 +102,7 @@ asm
 end;
 
 procedure asm_inthandler21; stdcall;
-asm                {
+asm        {
   push  es
   push  ds
   pushad
@@ -116,7 +116,7 @@ asm                {
   popad
   pop ds
   pop es
-  iretd             }
+  iretd     }
 end;
 
 procedure asm_inthandler27; stdcall;
