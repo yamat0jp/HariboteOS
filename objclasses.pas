@@ -62,6 +62,31 @@ type
     property Height: integer read FHei write FHei;
   end;
 
+  TMemMan = class
+  const
+    MEMMAN_FREES = 4090;
+
+  type
+    TMemInfo = record
+      addr, Size: integer;
+    end;
+  private
+    FLostSize, FLosts: integer;
+    FMem: TList<TMemInfo>;
+    function GetStrings(x: integer): TMemInfo;
+    procedure SetStrings(x: integer; const Value: TMemInfo);
+    function alloc(Size: integer): Pointer;
+    procedure delete(addr, Size: integer);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function total: integer; stdcall;
+    function alloc_4k(Size: integer): Pointer; stdcall;
+    procedure delete_4k(addr, Size: integer); stdcall;
+    property Strings[x: integer]: TMemInfo read GetStrings
+      write SetStrings; default;
+  end;
+
   TFrameWork = class
   private
     FFont: TFontClass;
@@ -78,27 +103,34 @@ type
     property Mouse: TMouseClass read FMouse;
   end;
 
-  TMemMan = class
-  const
-    MEMMAN_FREES = 4090;
+  TSheet = record
+    bxsize, bysize: integer;
+    vx, vy: integer;
+    col_inv: integer;
+    flags: integer;
+  end;
 
-  type
-    TMemInfo = record
-      addr, Size: integer;
-    end;
+  TSHTCtlClass = class
+  const
+    MAX_SHEETS = 255;
+    SHEET_USE = 1;
   private
-    FLostSize, FLosts: integer;
-    FMem: TList<TMemInfo>;
-    function GetStrings(x: integer): TMemInfo;
-    procedure SetStrings(x: integer; const Value: TMemInfo);
+    function GetHeight: integer;
+  protected
+    FSheets: TList;
+    FMem: TMemMan;
+    FVram: PByte;
+    FXSize, FYSize: integer;
+    FHeight: integer;
   public
     constructor Create;
     destructor Destroy; override;
-    function total: integer; stdcall;
-    function alloc(Size: integer): Pointer; stdcall;
-    procedure delete(addr, Size: integer); stdcall;
-    property Strings[x: integer]: TMemInfo read GetStrings
-      write SetStrings; default;
+    procedure refresh; stdcall;
+    procedure slide(id, vx, vy: integer); stdcall;
+    procedure updown(id, hei: integer); stdcall;
+    property xsize: integer read FXSize write FXSize;
+    property ysize: integer read FYSize write FYSize;
+    property Height: integer read GetHeight;
   end;
 
   { TFontClass }
@@ -396,7 +428,6 @@ begin
   FFont.putfonts8_asc(0, 0, 'masasi fuke');
   FMouse.init_mouse_cursor8(nil);
   fifo8_init;
-  FMem:=TMemMan.Create;
 end;
 
 destructor TFrameWork.Destroy;
@@ -405,7 +436,6 @@ begin
   FScreen.Free;
   FKeyboard.Free;
   FMouse.Free;
-  FMem.Free;
   inherited;
 end;
 
@@ -460,7 +490,7 @@ begin
   inherited;
 end;
 
-function TMemMan.alloc(Size: integer): Pointer; stdcall;
+function TMemMan.alloc(Size: integer): Pointer;
 var
   i: integer;
   rec: TMemInfo;
@@ -487,7 +517,7 @@ begin
     inc(result, FMem[i].Size);
 end;
 
-procedure TMemMan.delete(addr, Size: integer); stdcall;
+procedure TMemMan.delete(addr, Size: integer);
 var
   i: integer;
   rec: TMemInfo;
@@ -522,4 +552,111 @@ begin
       end;
       break;
     end;
+end;
+
+function TMemMan.alloc_4k(Size: integer): Pointer;
+begin
+  Size := (Size + $FFF) and $FFFFF000;
+  result := alloc(Size);
+end;
+
+procedure TMemMan.delete_4k(addr: integer; Size: integer);
+begin
+  Size := (Size + $FFF) and $FFFFF000;
+  delete(addr, Size);
+end;
+
+{ TSHTCtlClass }
+
+constructor TSHTCtlClass.Create;
+var
+  i: integer;
+  sht: ^TSheet;
+begin
+  inherited;
+  FMem := TMemMan.Create;
+  FXSize := 100;
+  FYSize := 100;
+  FSheets.Capacity := MAX_SHEETS;
+  for i := 0 to MAX_SHEETS do
+  begin
+    sht := FMem.alloc_4k(SizeOf(TSheet));
+    FSheets.Add(sht);
+    sht^.bxsize := FXSize;
+    sht^.bysize := FYSize;
+    sht^.flags := 0;
+  end;
+end;
+
+destructor TSHTCtlClass.Destroy;
+var
+  i: integer;
+begin
+  for i := 0 to FSheets.Count - 1 do
+    FMem.delete(integer(FSheets[i]), SizeOf(TSheet));
+  FMem.Free;
+  inherited;
+end;
+
+procedure TSHTCtlClass.refresh; stdcall;
+var
+  i: integer;
+  sht: ^TSheet;
+  c: Byte;
+  x, y, xx, yy: integer;
+begin
+  for i := Height - 1 downto 0 do
+  begin
+    sht := FSheets[i];
+    for y := 0 to sht.bysize do
+    begin
+      yy := sht.vy + y;
+      for x := 0 to sht.bxsize do
+      begin
+        xx := sht.vx + x;
+        c := buf[y * sht.bxsize + x];
+        if c <> sht.col_inv then
+          FVram[yy * sht.bxsize + xx] := c;
+      end;
+    end;
+  end;
+end;
+
+procedure TSHTCtlClass.slide(id: integer; vx: integer; vy: integer); stdcall;
+var
+  sht: ^TSheet;
+begin
+  sht := FSheets[id];
+  sht^.vx := vx;
+  sht^.vy := vy;
+  FSheets[id] := sht;
+  if Height > 0 then
+    refresh;
+end;
+
+function TSHTCtlClass.GetHeight;
+var
+  i: integer;
+  sht: ^TSheet;
+begin
+  result := 0;
+  for i := 0 to FSheets.Count - 1 do
+  begin
+    sht := FSheets[i];
+    if sht^.flags = 0 then
+    begin
+      result := i;
+      break;
+    end;
+  end;
+end;
+
+procedure TSHTCtlClass.updown(id: integer; hei: integer); stdcall;
+begin
+  if hei < -1 then
+    hei := 0;
+  if Height > GetHeight then
+    hei := GetHeight;
+  FSheets.Move(id, hei);
+  refresh;
 end;
