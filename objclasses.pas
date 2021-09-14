@@ -42,25 +42,6 @@ type
     property YSize: integer read FYSize write FYSize;
   end;
 
-  TFontClass = class
-  private
-    FFont: Pointer;
-    FColor: Byte;
-  public
-    constructor Create;
-    procedure putfont8(Vram: PByte; X, y, XSize: integer; c: Char);
-    procedure putfonts8_asc(Vram: PByte; X, y, XSize: integer;
-      str: PChar); stdcall;
-    property color: Byte read FColor write FColor;
-  end;
-
-  TScreenClass = class
-  public
-    procedure boxfill8(Vram: PByte; XSize: integer; color: Byte;
-      x0, y0, x1, y1: integer); stdcall;
-    procedure init_screen8(vram: PByte; xsize, ysize: integer); stdcall;
-  end;
-
   TFifoClass = class
   protected
     FFifo: TFifoQueue;
@@ -69,6 +50,7 @@ type
     function GetStatus: integer;
     function fifo8_push(data: Char): Boolean;
     function fifo8_pop: Char;
+    procedure inthandler(esp: integer); virtual; abstract;
   public
     constructor Create;
     destructor Destroy; override;
@@ -77,7 +59,7 @@ type
 
   TKeyFifoClass = class(TFifoClass)
   private
-    procedure inthandler21(esp: integer);
+    procedure inthandler(esp: integer); override;
     function GetCount: integer;
   public
     constructor Create;
@@ -94,7 +76,7 @@ type
     FMouse: PByte;
     procedure init_mouse_cursor8(cursor: PChar);
     procedure putblock8_8(px, py: integer; bxsize: integer);
-    procedure inthandler2c(esp: integer);
+    procedure inthandler(esp: integer); override;
   public
     constructor Create;
     property Width: integer read FWid write FWid;
@@ -135,6 +117,27 @@ type
     property flags: integer read FFlags write FFlags;
   end;
 
+  TFontClass = class
+  private
+    FBase: TOSBase;
+    FFont: Pointer;
+    FColor: Byte;
+  public
+    constructor Create(base: TOSBase);
+    procedure putfont8(X, y: integer; c: Char);
+    procedure putfonts8_asc(X, y: integer; str: PChar); stdcall;
+    property color: Byte read FColor write FColor;
+  end;
+
+  TScreenClass = class(TSheet)
+  private
+    FBase: TOSBase;
+  public
+    constructor Create(base: TOSBase);
+    procedure boxfill8(color: Byte; x0, y0, x1, y1: integer); stdcall;
+    procedure init_screen8; stdcall;
+  end;
+
   TSHTCtlClass = class
   private
     function GetHeight: integer;
@@ -165,8 +168,6 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure refresh; stdcall;
-    property Font: TFontClass read FFont;
-    property Screen: TScreenClass read FScreen;
     property Keyboard: TKeyFifoClass read FKeyboard;
     property Mouse: TMouseClass read FMouse;
   end;
@@ -252,13 +253,14 @@ end;
 
 { TFontClass }
 
-constructor TFontClass.Create;
+constructor TFontClass.Create(base: TOSBase);
 begin
-  inherited;
+  inherited Create;
+  FBase := base;
   FColor := Blue;
 end;
 
-procedure TFontClass.putfont8(Vram: PByte; X, y, XSize: integer; c: Char);
+procedure TFontClass.putfont8(X, y: integer; c: Char);
 type
   TFont = array [0 .. 16] of Byte;
 var
@@ -270,7 +272,7 @@ begin
   pdata := FFont;
   for i := 0 to 16 do
   begin
-    p := Vram + (y + i) * XSize + X;
+    p := FBase.Vram + (y + i) * FBase.XSize + X;
     b := pdata^[i];
     if b and $80 <> 0 then
       p[0] := FColor;
@@ -291,15 +293,14 @@ begin
   end;
 end;
 
-procedure TFontClass.putfonts8_asc(Vram: PByte; X, y, XSize: integer;
-  str: PChar); stdcall;
+procedure TFontClass.putfonts8_asc(X, y: integer; str: PChar); stdcall;
 var
   i: integer;
 begin
   i := 0;
   while str[i] <> '' do
   begin
-    putfont8(Vram, X, y, XSize, str[i]);
+    putfont8(X, y, str[i]);
     inc(X, 8);
     inc(i);
   end;
@@ -307,34 +308,42 @@ end;
 
 { TScreenClass }
 
-procedure TScreenClass.boxfill8(Vram: PByte; XSize: integer; color: Byte;
-  x0, y0, x1, y1: integer); stdcall;
+constructor TScreenClass.Create(base: TOSBase);
+begin
+  inherited Create;
+  FBase := base;
+end;
+
+procedure TScreenClass.boxfill8(color: Byte; x0, y0, x1, y1: integer); stdcall;
 var
   X, y: integer;
 begin
   for y := y0 to y1 do
     for X := x0 to x1 do
-      Vram[y * XSize + X] := Byte(color);
+      FBase.Vram[y * FBase.XSize + X] := Byte(color);
 end;
 
-procedure TScreenClass.init_screen8(vram: PByte; xsize, ysize: integer); stdcall;
+procedure TScreenClass.init_screen8; stdcall;
 begin
-  boxfill8(vram, xsize, col8_008484, 0, 0, XSize - 1, YSize - 29);
-  boxfill8(vram, xsize, col8_c6c6c6, 0, YSize - 28, XSize - 1, YSize - 28);
-  boxfill8(vram, xsize, col8_ffffff, 0, YSize - 27, XSize - 1, YSize - 27);
-  boxfill8(vram, xsize, col8_c6c6c6, 0, YSize - 26, XSize - 1, YSize - 1);
+  with FBase do
+  begin
+    boxfill8(col8_008484, 0, 0, XSize - 1, YSize - 29);
+    boxfill8(col8_c6c6c6, 0, YSize - 28, XSize - 1, YSize - 28);
+    boxfill8(col8_ffffff, 0, YSize - 27, XSize - 1, YSize - 27);
+    boxfill8(col8_c6c6c6, 0, YSize - 26, XSize - 1, YSize - 1);
 
-  boxfill8(vram, xsize, col8_ffffff, 3, YSize - 24, 59, YSize - 24);
-  boxfill8(vram, xsize, col8_ffffff, 2, YSize - 24, 2, YSize - 4);
-  boxfill8(vram, xsize, col8_848484, 3, YSize - 4, 59, YSize - 4);
-  boxfill8(vram, xsize, col8_848484, 59, YSize - 23, 59, YSize - 5);
-  boxfill8(vram, xsize, col8_000000, 2, YSize - 3, 59, YSize - 3);
-  boxfill8(vram, xsize, col8_000000, 60, YSize - 24, 60, YSize - 3);
+    boxfill8(col8_ffffff, 3, YSize - 24, 59, YSize - 24);
+    boxfill8(col8_ffffff, 2, YSize - 24, 2, YSize - 4);
+    boxfill8(col8_848484, 3, YSize - 4, 59, YSize - 4);
+    boxfill8(col8_848484, 59, YSize - 23, 59, YSize - 5);
+    boxfill8(col8_000000, 2, YSize - 3, 59, YSize - 3);
+    boxfill8(col8_000000, 60, YSize - 24, 60, YSize - 3);
 
-  boxfill8(vram, xsize, col8_848484, XSize - 47, YSize - 24, XSize - 4, YSize - 24);
-  boxfill8(vram, xsize, col8_848484, XSize - 47, YSize - 23, XSize - 47, YSize - 4);
-  boxfill8(vram, xsize, col8_ffffff, XSize - 47, YSize - 3, XSize - 4, YSize - 3);
-  boxfill8(vram, xsize, col8_ffffff, XSize - 3, YSize - 24, XSize - 3, YSize - 3);
+    boxfill8(col8_848484, XSize - 47, YSize - 24, XSize - 4, YSize - 24);
+    boxfill8(col8_848484, XSize - 47, YSize - 23, XSize - 47, YSize - 4);
+    boxfill8(col8_ffffff, XSize - 47, YSize - 3, XSize - 4, YSize - 3);
+    boxfill8(col8_ffffff, XSize - 3, YSize - 24, XSize - 3, YSize - 3);
+  end;
 end;
 
 { TFifoClass }
@@ -404,7 +413,7 @@ begin
   io_out8(PORT_KEYDAT, KBC_MODE);
 end;
 
-procedure TKeyFifoClass.inthandler21(esp: integer);
+procedure TKeyFifoClass.inthandler(esp: integer);
 var
   data: Char;
 begin
@@ -506,7 +515,7 @@ begin
       FVram[(py + y) * FXSize + px + X] := FMouse[y * bxsize + X];
 end;
 
-procedure TMouseClass.inthandler2c(esp: integer);
+procedure TMouseClass.inthandler(esp: integer);
 var
   data: Byte;
 begin
@@ -521,12 +530,12 @@ end;
 constructor TFrameWork.Create;
 begin
   inherited;
-  FFont := TFontClass.Create;
-  FScreen := TScreenClass.Create;
+  FFont := TFontClass.Create(Self);
+  FScreen := TScreenClass.Create(Self);
   FKeyboard := TKeyFifoClass.Create;
   FMouse := TMouseClass.Create;
-  FScreen.init_screen8(vram, xsize, ysize);
-  FFont.putfonts8_asc(vram, xsize, 0, 0, 'masasi fuke');
+  FScreen.init_screen8;
+  FFont.putfonts8_asc(0, 0, 'masasi fuke');
   FMouse.init_mouse_cursor8(nil);
   fifo8_init;
 end;
@@ -552,15 +561,15 @@ begin
   begin
     c := FKeyboard.fifo8_pop;
     io_sti;
-    FScreen.boxfill8(vram, xsize, col8_008484, 32, 16, 47, 31);
-    FFont.putfont8(vram, 32, 16, xsize, c);
+    FScreen.boxfill8(col8_008484, 32, 16, 47, 31);
+    FFont.putfont8(32, 16, c);
   end
   else if FMouse.Status <> 0 then
   begin
     c := FMouse.fifo8_pop;
     io_sti;
-    FScreen.boxfill8(vram, xsize, col8_008484, 32, 16, 47, 31);
-    FFont.putfont8(vram, 32, 16, xsize, c);
+    FScreen.boxfill8(col8_008484, 32, 16, 47, 31);
+    FFont.putfont8(32, 16, c);
   end;
 end;
 
@@ -569,20 +578,20 @@ var
   i: integer;
   sht: TSheet;
   c: Byte;
-  X, y, xx, yy: integer;
+  X, y, bx, by: integer;
 begin
   for i := FWinList.Height - 1 downto 0 do
   begin
     sht := FWinList[i];
     for y := 0 to sht.bysize do
     begin
-      yy := sht.vy + y;
+      by := sht.vy + y;
       for X := 0 to sht.bxsize do
       begin
-        xx := sht.vx + X;
+        bx := sht.vx + X;
         c := sht.buf[y * sht.bxsize + X];
         if c <> sht.col_inv then
-          FVram[yy * sht.bxsize + xx] := c;
+          FVram[by * sht.bxsize + bx] := c;
       end;
     end;
   end;
@@ -769,7 +778,9 @@ end;
 function TSHTCtlClass.GetSheet(id: integer): TSheet;
 begin
   if (0 <= id) and (id < GetHeight) then
-    result := FSheets[id];
+    result := FSheets[id]
+  else
+    result := nil;
 end;
 
 procedure TSHTCtlClass.SetSheet(id: integer; const Value: TSheet);
