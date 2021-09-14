@@ -9,22 +9,26 @@ type
     property Count: integer read FCount;
   end;
 
-  TMemInfo = record
-    addr, Size: integer;
+  TMemClass = class
+  private
+    FAddr, FSize: integer;
+  public
+    property addr: integer read FAddr write FAddr;
+    property Size: integer read FSize write FSize;
   end;
 
   TSheetList = class
   private
     FCount: integer;
-    FSource: array [0 .. 255] of TMemInfo;
-    function GetItem(X: integer): TMemInfo;
-    procedure SetItem(X: integer; const Value: TMemInfo);
+    FSource: array [0 .. 255] of Pointer;
+    function GetItem(X: integer): Pointer;
+    procedure SetItem(X: integer; const Value: Pointer);
   public
-    procedure Add(item: TMemInfo);
+    procedure Add(item: Pointer);
     procedure Move(id, num: integer);
-    procedure Insert(id: integer; item: TMemInfo);
+    procedure Insert(id: integer; item: Pointer);
     procedure Delete(id: integer);
-    property item[X: integer]: TMemInfo read GetItem write SetItem; default;
+    property item[X: integer]: Pointer read GetItem write SetItem; default;
     property Count: integer read FCount;
   end;
 
@@ -97,8 +101,8 @@ type
   private
     FLostSize, FLosts: integer;
     FMem: TSheetList;
-    function GetStrings(X: integer): TMemInfo;
-    procedure SetStrings(X: integer; const Value: TMemInfo);
+    function GetStrings(X: integer): TMemClass;
+    procedure SetStrings(X: integer; const Value: TMemClass);
     function alloc(Size: integer): Pointer;
     procedure Delete(addr, Size: integer);
   public
@@ -107,7 +111,7 @@ type
     function total: integer; stdcall;
     function alloc_4k(Size: integer): Pointer; stdcall;
     procedure delete_4k(addr, Size: integer); stdcall;
-    property Strings[X: integer]: TMemInfo read GetStrings
+    property Strings[X: integer]: TMemClass read GetStrings
       write SetStrings; default;
   end;
 
@@ -127,19 +131,26 @@ type
     property Mouse: TMouseClass read FMouse;
   end;
 
-  TSheet = record
-    buf: PByte;
-    bxsize, bysize: integer;
-    vx, vy: integer;
-    col_inv: integer;
-    flags: integer;
+  TSheet = class
+  private
+    FBuf: PByte;
+    FBxsize, FBysize, FVx, FVy, FCol_inv, FFlags: integer;
+  protected
+    property buf: PByte read FBuf write FBuf;
+  public
+    property bxsize: integer read FBxsize write FBxsize;
+    property bysize: integer read FBysize write FBysize;
+    property vx: integer read FVx write FVx;
+    property vy: integer read FVy write FVy;
+    property col_inv: integer read FCol_inv write FCol_inv;
+    property flags: integer read FFlags write FFlags;
   end;
 
   TSHTCtlClass = class
   private
     function GetHeight: integer;
   protected
-    FSheets: TList;
+    FSheets: TSheetList;
     FMem: TMemMan;
     FVram: PByte;
     FXSize, FYSize: integer;
@@ -175,12 +186,13 @@ end;
 
 { TSheetList }
 
-procedure TSheetList.SetItem(X: integer; const Value: TMemInfo);
+procedure TSheetList.SetItem(X: integer; const Value: Pointer);
 begin
-  FSource[X] := Value;
+  if (0 <= X) and (X < FCount) then
+    FSource[X] := Value;
 end;
 
-procedure TSheetList.Add(item: TMemInfo);
+procedure TSheetList.Add(item: Pointer);
 begin
   if FCount < 255 then
   begin
@@ -191,20 +203,23 @@ end;
 
 procedure TSheetList.Move(id: integer; num: integer);
 var
-  tmp: TMemInfo;
+  tmp: TMemClass;
   i: integer;
 begin
-  tmp := FSource[id];
-  if id < num then
-    for i := id to num - 1 do
-      FSource[i] := FSource[i + 1]
-  else
-    for i := id downto num - 1 do
-      FSource[i] := FSource[i - 1];
-  FSource[num] := tmp;
+  if (0 <= id) and (id < FCount) and (0 <= num) and (num < FCount) then
+  begin
+    tmp := FSource[id];
+    if id < num then
+      for i := id to num - 1 do
+        FSource[i] := FSource[i + 1]
+    else
+      for i := id downto num - 1 do
+        FSource[i] := FSource[i - 1];
+    FSource[num] := tmp;
+  end;
 end;
 
-procedure TSheetList.Insert(id: integer; item: TMemInfo);
+procedure TSheetList.Insert(id: integer; item: Pointer);
 begin
   Add(item);
   Move(FCount - 1, id);
@@ -214,7 +229,7 @@ procedure TSheetList.Delete(id: integer);
 var
   i: integer;
 begin
-  if id < FCount then
+  if (0 <= id) and (id < FCount) then
   begin
     dec(FCount);
     for i := id to FCount - 1 do
@@ -222,9 +237,9 @@ begin
   end;
 end;
 
-function TSheetList.GetItem(X: integer): TMemInfo;
+function TSheetList.GetItem(X: integer): Pointer;
 begin
-  if (0 < X) and (X < FCount) then
+  if (0 <= X) and (X < FCount) then
     result := FSource[X];
 end;
 
@@ -560,13 +575,13 @@ end;
 
 { TMemMan }
 
-function TMemMan.GetStrings(X: integer): TMemInfo;
+function TMemMan.GetStrings(X: integer): TMemClass;
 begin
   if (0 <= X) and (X <= MEMMAN_FREES) then
     result := FMem[X];
 end;
 
-procedure TMemMan.SetStrings(X: integer; const Value: TMemInfo);
+procedure TMemMan.SetStrings(X: integer; const Value: TMemClass);
 begin
   if (0 <= X) and (X <= MEMMAN_FREES) then
     FMem[X] := Value;
@@ -588,17 +603,17 @@ end;
 function TMemMan.alloc(Size: integer): Pointer;
 var
   i: integer;
-  rec: TMemInfo;
+  obj: TMemClass;
 begin
   result := Pointer(0);
   for i := 0 to FMem.Count - 1 do
-    if FMem[i].Size >= Size then
+    if TMemClass(FMem[i]).Size >= Size then
     begin
-      rec := FMem[i];
-      result := Pointer(rec.addr);
-      inc(rec.addr, Size);
-      dec(rec.Size, Size);
-      if FMem[i].Size = 0 then
+      obj := FMem[i];
+      result := Pointer(obj.addr);
+      obj.addr := obj.addr+ Size;
+      obj.Size :=obj.Size- Size;
+      if obj.Size = 0 then
         FMem.Delete(i);
     end;
 end;
@@ -609,41 +624,40 @@ var
 begin
   result := 0;
   for i := 0 to FMem.Count - 1 do
-    inc(result, FMem[i].Size);
+    inc(result, TMemClass(FMem[i]).Size);
 end;
 
 procedure TMemMan.Delete(addr, Size: integer);
 var
   i: integer;
-  rec: TMemInfo;
+  obj, tmp: TMemClass;
 begin
   for i := 0 to FMem.Count - 1 do
-    if FMem[i].addr > addr then
+    if TMemClass(FMem[i]).addr > addr then
     begin
-      if FMem[i - 1].addr + FMem[i - 1].Size = addr then
+      obj:=FMem[i-1];
+      tmp:= FMem[i];
+      if obj.addr + obj.Size = addr then
       begin
-        rec := FMem[i - 1];
-        inc(rec.Size, Size);
-        FMem[i - 1] := rec;
-        if addr + Size < FMem[i].addr then
+        obj.Size := obj.Size + Size;
+        if addr + Size < tmp.addr then
         begin
-          rec := FMem[i - 1];
-          inc(rec.Size, FMem[i].Size);
-          FMem[i - 1] := rec;
+          obj.Size := obj.Size+tmp.Size;
+          tmp.Free;
           FMem.Delete(i);
         end;
       end
-      else if addr + Size = FMem[i].addr then
+      else if addr + Size = tmp.addr then
       begin
-        rec.addr := addr;
-        rec.Size := FMem[i].Size + Size;
-        FMem[i] := rec;
+        tmp.addr := addr;
+        tmp.Size := tmp.Size + Size;
       end
       else
       begin
-        rec.addr := addr;
-        rec.Size := Size;
-        FMem.Insert(i, rec);
+        obj.Create;
+        obj.addr := addr;
+        obj.Size := Size;
+        FMem.Insert(i, obj);
       end;
       break;
     end;
@@ -672,7 +686,6 @@ begin
   FMem := TMemMan.Create;
   FXSize := 100;
   FYSize := 100;
-  FSheets.Capacity := MAX_SHEETS;
   for i := 0 to MAX_SHEETS do
   begin
     sht := FMem.alloc_4k(SizeOf(TSheet));
