@@ -69,18 +69,18 @@ type
 
   TMouseClass = class(TFifoClass)
   private
-    FVram: PByte;
-    FXSize, FYSize: integer;
+    FBase: TOSBase;
     FWid, FHei: integer;
     FCursor, FDefault: PChar;
     FMouse: PByte;
+    FX, FY: integer;
     procedure init_mouse_cursor8(cursor: PChar);
-    procedure putblock8_8(px, py: integer; bxsize: integer);
+    procedure putblock8_8;
     procedure inthandler(esp: integer); override;
   public
-    constructor Create;
-    property Width: integer read FWid write FWid;
-    property Height: integer read FHei write FHei;
+    constructor Create(base: TOSBase);
+    property X: integer read FX write FX;
+    property Y: integer read FY write FY;
   end;
 
   TMemMan = class
@@ -170,6 +170,7 @@ type
     procedure refresh; stdcall;
     property Keyboard: TKeyFifoClass read FKeyboard;
     property Mouse: TMouseClass read FMouse;
+    property Font: TFontClass read FFont;
   end;
 
   { TFifoQueue }
@@ -429,15 +430,10 @@ end;
 
 { TMouseClass }
 
-constructor TMouseClass.Create;
-var
-  hdr: ^TMultiboot_hdr;
+constructor TMouseClass.Create(base: TOSBase);
 begin
-  inherited;
-  hdr := Pointer(0);
-  FVram := hdr^.screen_addr;
-  FXSize := hdr^.Width;
-  FYSize := hdr^.Height;
+  inherited Create;
+  FBase := base;
   FWid := 16;
   FHei := 16;
   init_mouse_cursor8(nil);
@@ -506,13 +502,13 @@ begin
   until y >= FHei;
 end;
 
-procedure TMouseClass.putblock8_8(px, py: integer; bxsize: integer);
+procedure TMouseClass.putblock8_8;
 var
-  X, y: integer;
+  sx, sy: integer;
 begin
-  for y := 0 to FYSize - 1 do
-    for X := 0 to FXSize - 1 do
-      FVram[(py + y) * FXSize + px + X] := FMouse[y * bxsize + X];
+  for sy := 0 to FHei - 1 do
+    for sx := 0 to FWid - 1 do
+      FBase.Vram[(FY + sy) * FBase.XSize + FX + sx] := FMouse[sy * FBase.XSize + sx];
 end;
 
 procedure TMouseClass.inthandler(esp: integer);
@@ -533,7 +529,7 @@ begin
   FFont := TFontClass.Create(Self);
   FScreen := TScreenClass.Create(Self);
   FKeyboard := TKeyFifoClass.Create;
-  FMouse := TMouseClass.Create;
+  FMouse := TMouseClass.Create(Self);
   FScreen.init_screen8;
   FFont.putfonts8_asc(0, 0, 'masasi fuke');
   FMouse.init_mouse_cursor8(nil);
@@ -578,23 +574,25 @@ var
   i: integer;
   sht: TSheet;
   c: Byte;
-  X, y, bx, by: integer;
+  sx, sy, bx, by: integer;
 begin
+  FSCreen.init_screen8;
   for i := FWinList.Height - 1 downto 0 do
   begin
     sht := FWinList[i];
-    for y := 0 to sht.bysize do
+    for sy := 0 to sht.bysize do
     begin
-      by := sht.vy + y;
-      for X := 0 to sht.bxsize do
+      by := sht.vy + sy;
+      for sx := 0 to sht.bxsize do
       begin
-        bx := sht.vx + X;
-        c := sht.buf[y * sht.bxsize + X];
+        bx := sht.vx + sx;
+        c := sht.buf[sy * sht.bxsize + sx];
         if c <> sht.col_inv then
           FVram[by * sht.bxsize + bx] := c;
       end;
     end;
   end;
+  FMouse.putblock8_8();
 end;
 
 { TMemMan }
