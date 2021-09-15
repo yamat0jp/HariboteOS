@@ -5,9 +5,7 @@ program haribote;
 
 uses
   System.Classes,
-  ShellAPI,
-  Contnrs,
-  Generics.Collections;
+  ShellAPI, Rtti;
 
 {$I asmhead}
 {$I naskfunc}
@@ -31,7 +29,7 @@ begin
   init_gdtidt;
   init_pic;
   init_palette;
-  obj:=TFrameWork.Create;
+  obj := TFrameWork.Create;
   obj.Free;
 end;
 
@@ -47,6 +45,8 @@ var
   multiboot_hdr: TMultiBoot_hdr;
   image_base, entry_addr: integer;
   LExePath, LParams: string;
+  Rtti: TRttiContext;
+  data: TRttiType;
 
 begin
   MemoryStream := TMemoryStream.Create;
@@ -95,7 +95,14 @@ begin
 
     MemoryStream.Position := 0;
     MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
+    for data in Rtti.GetTypes do
+      if data.Name = 'TOSBase' then
+      begin
+        Writeln(data.Name);
+        MemoryStream.WriteBuffer(data, data.RttiDataSize);
+      end;
     MemoryStream.SaveToFile('Kernel.bin');
+    Readln;
   finally
     MemoryStream.Free;
     fs.Free;
@@ -103,5 +110,7 @@ begin
   LExePath := 'qemu-system-x86_64.exe';
   LParams := '-kernel Kernel.bin';
   ShellExecute(0, nil, pchar(LExePath), pchar(LParams), nil, 5);
+  { Writeln(entry_addr);
+    Readln; }
 
 end.

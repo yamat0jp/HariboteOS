@@ -1,4 +1,5 @@
 type
+{$M+}
   TFifoQueue = class
   private
     FCount: integer;
@@ -32,7 +33,7 @@ type
     property Count: integer read FCount;
   end;
 
-  TOSBase = class
+  TOSBase = class(TPersistent)
   private
     FVram: PByte;
     FXSize, FYSize: integer;
@@ -124,8 +125,8 @@ type
     FColor: Byte;
   public
     constructor Create(base: TOSBase);
-    procedure putfont8(X, y: integer; c: Char);
-    procedure putfonts8_asc(X, y: integer; str: PChar); stdcall;
+    procedure putfont8(X, Y: integer; c: Char);
+    procedure putfonts8_asc(X, Y: integer; str: PChar); stdcall;
     property color: Byte read FColor write FColor;
   end;
 
@@ -172,7 +173,7 @@ type
     property Mouse: TMouseClass read FMouse;
     property Font: TFontClass read FFont;
   end;
-
+{$M-}
   { TFifoQueue }
 
 procedure TFifoQueue.Push(item: PWideChar);
@@ -261,7 +262,7 @@ begin
   FColor := Blue;
 end;
 
-procedure TFontClass.putfont8(X, y: integer; c: Char);
+procedure TFontClass.putfont8(X, Y: integer; c: Char);
 type
   TFont = array [0 .. 16] of Byte;
 var
@@ -273,7 +274,7 @@ begin
   pdata := FFont;
   for i := 0 to 16 do
   begin
-    p := FBase.Vram + (y + i) * FBase.XSize + X;
+    p := FBase.Vram + (Y + i) * FBase.XSize + X;
     b := pdata^[i];
     if b and $80 <> 0 then
       p[0] := FColor;
@@ -294,14 +295,14 @@ begin
   end;
 end;
 
-procedure TFontClass.putfonts8_asc(X, y: integer; str: PChar); stdcall;
+procedure TFontClass.putfonts8_asc(X, Y: integer; str: PChar); stdcall;
 var
   i: integer;
 begin
   i := 0;
   while str[i] <> '' do
   begin
-    putfont8(X, y, str[i]);
+    putfont8(X, Y, str[i]);
     inc(X, 8);
     inc(i);
   end;
@@ -317,11 +318,11 @@ end;
 
 procedure TScreenClass.boxfill8(color: Byte; x0, y0, x1, y1: integer); stdcall;
 var
-  X, y: integer;
+  X, Y: integer;
 begin
-  for y := y0 to y1 do
+  for Y := y0 to y1 do
     for X := x0 to x1 do
-      FBase.Vram[y * FBase.XSize + X] := Byte(color);
+      FBase.Vram[Y * FBase.XSize + X] := Byte(color);
 end;
 
 procedure TScreenClass.init_screen8; stdcall;
@@ -445,7 +446,7 @@ end;
 
 procedure TMouseClass.init_mouse_cursor8(cursor: PChar);
 var
-  X, y: integer;
+  X, Y: integer;
   procedure build(data: array of string);
   var
     i, j, k: integer;
@@ -484,22 +485,22 @@ begin
   else
     FCursor := cursor;
   X := 0;
-  y := 0;
+  Y := 0;
   repeat
     case FCursor[X] of
       '*':
-        FMouse[FWid * y + X] := col8_000000;
+        FMouse[FWid * Y + X] := col8_000000;
       '0':
-        FMouse[FWid * y + X] := col8_ffffff;
+        FMouse[FWid * Y + X] := col8_ffffff;
       '.':
-        FMouse[FWid * y + X] := Yellow;
+        FMouse[FWid * Y + X] := Yellow;
     end;
     if X >= FWid then
     begin
       X := 0;
-      inc(y);
+      inc(Y);
     end;
-  until y >= FHei;
+  until Y >= FHei;
 end;
 
 procedure TMouseClass.putblock8_8;
@@ -508,7 +509,8 @@ var
 begin
   for sy := 0 to FHei - 1 do
     for sx := 0 to FWid - 1 do
-      FBase.Vram[(FY + sy) * FBase.XSize + FX + sx] := FMouse[sy * FBase.XSize + sx];
+      FBase.Vram[(FY + sy) * FBase.XSize + FX + sx] :=
+        FMouse[sy * FBase.XSize + sx];
 end;
 
 procedure TMouseClass.inthandler(esp: integer);
@@ -576,7 +578,7 @@ var
   c: Byte;
   sx, sy, bx, by: integer;
 begin
-  FSCreen.init_screen8;
+  FScreen.init_screen8;
   for i := FWinList.Height - 1 downto 0 do
   begin
     sht := FWinList[i];

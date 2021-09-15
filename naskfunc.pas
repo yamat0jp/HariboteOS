@@ -1,34 +1,29 @@
 procedure io_hlt; stdcall;
 asm
   hlt
-  ret
 end;
 
 procedure io_cli; stdcall;
 asm
   cli
-  ret
 end;
 
 procedure io_sti; stdcall;
 asm
   sti
-  ret
 end;
 
 procedure io_stihlt; stdcall;
 asm
   sti
   hlt
-  ret
 end;
 
 function io_in8(port: integer): Int8; stdcall;
 asm
-  mov edx,  port
-  mov eax,  0
+  mov dx,  WORD [port]
   in  al, dx
-  ret
+  mov @Result,  al
 end;
 
 function io_in16(port: integer): Int16; stdcall;
@@ -36,22 +31,19 @@ asm
   mov edx,  port
   mov eax,  0
   in  ax,  dx
-  ret
 end;
 
 function io_in32(port: integer): Int32; stdcall;
 asm
   mov edx,  port
   in  eax,  dx
-  ret
 end;
 
 function io_out8(port, data: integer): integer; stdcall;
 asm
   mov edx,  port
-  mov eax,  data
+  mov al,  BYTE [data]
   out dx, al
-  ret
 end;
 
 function io_out16(port, data: integer): Int16; stdcall;
@@ -59,7 +51,6 @@ asm
   mov edx,  port
   mov eax,  data
   out dx, ax
-  ret
 end;
 
 function io_out32(port, data: integer): Int32; stdcall;
@@ -67,14 +58,13 @@ asm
   mov edx,  port
   mov eax,  data
   out dx, eax
-  ret
 end;
 
 function io_load_eflags: integer; stdcall;
 asm{
   pushfd
   pop eax
-  ret}
+  ret }
 end;
 
 function io_store_eflags(port: integer): integer; stdcall;
@@ -82,23 +72,21 @@ asm{
   mov eax,  port
   push  eax
   popfd
-  ret}
+  ret }
 end;
 
-procedure load_gdtr(limit, addr: integer);stdcall;
+procedure load_gdtr(limit, addr: integer); stdcall;
 asm
   mov eax, limit
   mov addr,  eax
   lgdt  WORD [addr]
-  ret
 end;
 
-procedure load_idtr(limit, addr: integer);stdcall;
+procedure load_idtr(limit, addr: integer); stdcall;
 asm
   mov eax,  limit
   mov addr,  eax
   lidt  WORD [addr]
-  ret
 end;
 
 procedure asm_inthandler21; stdcall;
@@ -116,7 +104,7 @@ asm        {
   popad
   pop ds
   pop es
-  iretd     }
+  iretd }
 end;
 
 procedure asm_inthandler27; stdcall;
