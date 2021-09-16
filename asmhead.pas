@@ -1,3 +1,7 @@
+unit asmhead;
+
+interface
+
 const
   Blue = 1;
   Red = 4;
@@ -90,3 +94,6 @@ type
     screen_addr, font_addr: Pointer;
   end;
 
+implementation
+
+end.

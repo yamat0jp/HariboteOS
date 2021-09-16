@@ -1,4 +1,13 @@
+unit graph;
 
+interface
+
+uses io_procs;
+
+procedure set_palette(start, stop: integer; rgb: PByte); stdcall;
+procedure init_palette; stdcall;
+
+implementation
 
 procedure set_palette(start, stop: integer; rgb: PByte); stdcall;
 var
@@ -47,4 +56,6 @@ begin
     $84, $84, $84]);
   set_palette(1, 16, @table_rgb);
 end;
+
+end.
 

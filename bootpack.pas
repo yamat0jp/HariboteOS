@@ -1,3 +1,17 @@
+unit bootpack;
+
+interface
+
+uses io_procs, asmhead;
+
+procedure set_segmdesc(var sd: TSegment; limit, base, ar: cardinal); stdcall;
+procedure set_gatedesc(var gd: TGate; offset, selector, ar: cardinal); stdcall;
+procedure init_gdtidt; stdcall;
+procedure write_mem8(addr, data: integer); stdcall
+procedure init_pic; stdcall;
+
+implementation
+
 procedure set_segmdesc(var sd: TSegment; limit, base, ar: cardinal); stdcall;
 begin
   if limit > $FFFFF then
@@ -80,3 +94,4 @@ begin
   io_out8(pic1_imr, $FF);
 end;
 
+end.
