@@ -1,34 +1,31 @@
 program Project1;
 
 {$APPTYPE CONSOLE}
-
 {$R *.res}
 
 uses
   System.SysUtils,
-  classes;
-
-type
-  TMultiboot_hdr = packed record
-    magic, flags, checksum: cardinal;
-    header_addr, load_addr, load_end_addr, bss_end_addr, entry_addr: cardinal;
-    mode_type: cardinal;
-    width, height, depth: cardinal;
-    screen_addr, font_addr: Pointer;
-  end;
+  classes, asmhead;
 
 var
-  ms: tmemorystream;
-  hdr: tmultiboot_hdr;
+  ms, sc: tmemorystream;
+  size: integer;
+  hdr: TMultiboot_hdr;
+
 begin
   try
     { TODO -oUser -cConsole メイン : ここにコードを記述してください }
-    ms:=tmemorystream.Create;
+    ms := tmemorystream.Create;
     ms.LoadFromFile('kernel.bin');
-    ms.ReadBuffer(hdr,sizeof(tmultiboot_hdr));
+    ms.Position := 0;
+    ms.ReadBuffer(hdr, SizeOf(hdr));
+    Writeln(integer(hdr.screen_addr).ToHexString);
+    Writeln(hdr.width,'/',hdr.height);
+    Readln;
     ms.Free;
   except
     on E: Exception do
       Writeln(E.ClassName, ': ', E.Message);
   end;
+
 end.

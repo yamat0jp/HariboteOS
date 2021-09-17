@@ -6,19 +6,21 @@ program haribote;
 uses
   System.Classes,
   ShellAPI,
-  asmhead,
-  graph, bootpack;
+  asmhead;
 
 procedure harimain; stdcall; forward;
+procedure main; stdcall; forward;
 
 procedure loader; stdcall;
 asm
   cli
+  call main
   call harimain
   hlt
 end;
 
 procedure harimain; stdcall; external 'OSClasses';
+procedure main; stdcall; external 'OSClasses';
 
 procedure loader_end; stdcall;
 begin
