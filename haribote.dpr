@@ -43,7 +43,7 @@ begin
     multiboot_hdr.depth := 0;
     multiboot_hdr.screen_addr := Pointer($B8000);
 
-    MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
+//    MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
     fs.Position := start;
     size := ini.ReadInteger('address', 'size', 0);
     MemoryStream.CopyFrom(fs, size);
