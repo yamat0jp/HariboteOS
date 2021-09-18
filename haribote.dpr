@@ -6,22 +6,35 @@ program haribote;
 uses
   System.Classes,
   ShellAPI,
-  asmhead;
+  Windows,
+  asmhead, io_procs;
+
+type
+  TOSMain = procedure; stdcall;
 
 procedure harimain; stdcall; forward;
-procedure main; stdcall; forward;
-
 procedure loader; stdcall;
 asm
   cli
-  call main
-  call harimain
+  call  harimain
   hlt
 end;
 
-procedure harimain; stdcall; external 'OSClasses';
-procedure main; stdcall; external 'OSClasses';
-
+procedure harimain; stdcall; external 'OSClasses' name 'main' delayed;
+{
+var
+  lib: THandle;
+  proc: TOSMain;
+begin
+  lib:=LoadLibrary('OSClasses.dll');
+  try
+    proc:=Windows.GetProcAddress(lib,'harimain');
+    io_hlt;
+  finally
+    FreeLibrary(lib);
+  end;
+end;
+ }
 procedure loader_end; stdcall;
 begin
 
