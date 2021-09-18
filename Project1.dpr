@@ -4,28 +4,24 @@ program Project1;
 {$R *.res}
 
 uses
-  System.SysUtils,
-  classes, asmhead;
+  System.SysUtils, IniFiles;
+
+function load: integer; external 'OSClasses';
+function load_end: integer; external 'OSClasses';
 
 var
-  ms, sc: tmemorystream;
-  size: integer;
-  hdr: TMultiboot_hdr;
+  i, j: integer;
+  ini: TIniFile;
 
 begin
-  try
-    { TODO -oUser -cConsole メイン : ここにコードを記述してください }
-    ms := tmemorystream.Create;
-    ms.LoadFromFile('kernel.bin');
-    ms.Position := 0;
-    ms.ReadBuffer(hdr, SizeOf(hdr));
-    Writeln(integer(hdr.screen_addr).ToHexString);
-    Writeln(hdr.width,'/',hdr.height);
-    Readln;
-    ms.Free;
-  except
-    on E: Exception do
-      Writeln(E.ClassName, ': ', E.Message);
-  end;
+  i := load;
+  j := load_end;
+  Writeln(i.ToHexString, '/', j.ToHexString);
+  Writeln((j - i).ToHexString);
+  ini := TIniFile.Create('.\data.ini');
+  ini.WriteInteger('address', 'start', i);
+  ini.WriteInteger('address', 'size', j - i);
+  ini.Free;
+  Readln;
 
 end.

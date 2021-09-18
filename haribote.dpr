@@ -7,57 +7,31 @@ uses
   System.Classes,
   ShellAPI,
   Windows,
-  asmhead, io_procs;
+  IniFiles,
+  asmhead;
 
 type
   TOSMain = procedure; stdcall;
 
-procedure harimain; stdcall; forward;
-procedure loader; stdcall;
-asm
-  cli
-  call  harimain
-  hlt
-end;
-
-procedure harimain; stdcall; external 'OSClasses' name 'main' delayed;
-{
-var
-  lib: THandle;
-  proc: TOSMain;
-begin
-  lib:=LoadLibrary('OSClasses.dll');
-  try
-    proc:=Windows.GetProcAddress(lib,'harimain');
-    io_hlt;
-  finally
-    FreeLibrary(lib);
-  end;
-end;
- }
-procedure loader_end; stdcall;
-begin
-
-end;
-
 var
   MemoryStream, fs: TMemoryStream;
-  pFunc, pBuff: Pointer;
-  fwSize, dwSize, image_size, size: cardinal;
+  p: Pointer;
+  image_size, start, size, entry: cardinal;
   multiboot_hdr: TMultiBoot_hdr;
-  image_base, entry_addr: integer;
+  image_base: integer;
+  ini: TIniFile;
   LExePath, LParams: string;
 
 begin
   MemoryStream := TMemoryStream.Create;
   fs := TMemoryStream.Create;
-  image_base := $00400000;
-  entry_addr := integer(@loader) - image_base;
-  size := entry_addr - SizeOf(multiboot_hdr);
-  image_size := size + $00001000;
-  MemoryStream := TMemoryStream.Create;
+  ini := TIniFile.Create('data.ini');
   try
-    FillChar(multiboot_hdr, SizeOf(multiboot_hdr), 0);
+    fs.LoadFromFile('OSClasses.dll');
+    image_base := $1000;
+    start := ini.ReadInteger('address', 'start', image_base);
+    entry:=start+image_base;
+    image_size := SizeOf(TMultiboot_hdr) + fs.size - image_base + $00001000;
     multiboot_hdr.magic := $1BADB002;
     multiboot_hdr.flags := 1 shl 16;
     multiboot_hdr.checksum :=
@@ -66,39 +40,28 @@ begin
     multiboot_hdr.load_addr := image_base;
     multiboot_hdr.load_end_addr := cardinal(image_base) + image_size;
     multiboot_hdr.bss_end_addr := cardinal(image_base) + image_size;
-    multiboot_hdr.entry_addr := image_base + entry_addr;
+    multiboot_hdr.entry_addr := start;
     multiboot_hdr.mode_type := 0;
     multiboot_hdr.width := 360;
     multiboot_hdr.height := 280;
     multiboot_hdr.depth := 0;
     multiboot_hdr.screen_addr := Pointer($B8000);
 
-    MemoryStream.Position := SizeOf(multiboot_hdr);
-    dwSize := entry_addr - MemoryStream.Position;
-    pBuff := AllocMem(dwSize);
-    MemoryStream.WriteBuffer(pBuff^, dwSize);
-    FreeMem(pBuff, dwSize);
-
-    pFunc := @loader;
-    fwSize := cardinal(@loader_end) - cardinal(@loader);
-    fs.LoadFromFile('hankaku.bin');
-
-    image_size := $1000;
-    dwSize := image_size - fwSize - fs.size;
-
-    pBuff := AllocMem(dwSize);
-    MemoryStream.WriteBuffer(pFunc^, fwSize);
-    MemoryStream.WriteBuffer(pBuff^, dwSize);
-    multiboot_hdr.font_addr := Pointer(MemoryStream.Position);
-    MemoryStream.CopyFrom(fs, 0);
-    FreeMem(pBuff, dwSize);
-
-    MemoryStream.Position := 0;
     MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
+    fs.Position := entry;
+    size := ini.ReadInteger('address', 'size', 0);
+    MemoryStream.CopyFrom(fs, size);
+    fs.Position := entry;
+    p := AllocMem(size);
+    fs.WriteBuffer(p, size);
+    FreeMem(p);
+    fs.Position := image_base;
+    MemoryStream.CopyFrom(fs, fs.size - fs.Position);
     MemoryStream.SaveToFile('Kernel.bin');
   finally
     MemoryStream.Free;
     fs.Free;
+    ini.Free;
   end;
   LExePath := 'qemu-system-x86_64.exe';
   LParams := '-kernel Kernel.bin';
