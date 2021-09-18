@@ -14,8 +14,8 @@ var
   ini: TIniFile;
 
 begin
-  i := load;
-  j := load_end;
+  i := load div 8;
+  j := load_end div 8;
   Writeln(i.ToHexString, '/', j.ToHexString);
   Writeln((j - i).ToHexString);
   ini := TIniFile.Create('.\data.ini');
