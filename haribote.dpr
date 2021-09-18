@@ -24,7 +24,7 @@ begin
   ini := TIniFile.Create('.\data.ini');
   try
     fs.LoadFromFile('OSClasses.dll');
-    image_base := $100 div 8;
+    image_base := $100;
     start := ini.ReadInteger('address', 'start', 0);
     entry := start - image_base;
     image_size := SizeOf(TMultiBoot_hdr) + fs.size + $00001000;
@@ -51,8 +51,8 @@ begin
     p := AllocMem(size);
     fs.WriteBuffer(p, size);
     FreeMem(p);
-    fs.Position:=image_base;
-    MemoryStream.CopyFrom(fs, fs.Size-fs.Position);
+    fs.Position := image_base;
+    MemoryStream.CopyFrom(fs, fs.size - fs.Position);
     MemoryStream.SaveToFile('Kernel.bin');
   finally
     MemoryStream.Free;
