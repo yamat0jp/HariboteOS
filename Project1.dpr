@@ -17,7 +17,7 @@ begin
   i := load div 8;
   j := load_end div 8;
   Writeln(i.ToHexString, '/', j.ToHexString);
-  Writeln((j - i).ToHexString);
+  Writeln(j - i);
   ini := TIniFile.Create('.\data.ini');
   ini.WriteInteger('address', 'start', i);
   ini.WriteInteger('address', 'size', j - i);

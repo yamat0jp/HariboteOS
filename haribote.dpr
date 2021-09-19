@@ -11,7 +11,6 @@ uses
 
 var
   MemoryStream, fs: TMemoryStream;
-  p: Pointer;
   image_size, size: cardinal;
   image_base, start, entry: integer;
   multiboot_hdr: TMultiBoot_hdr;
@@ -29,7 +28,7 @@ begin
     entry := start - image_base;
     image_size := SizeOf(TMultiBoot_hdr) + fs.size + $00001000;
     multiboot_hdr.magic := $1BADB002;
-    multiboot_hdr.flags := 1 shl 16;
+    multiboot_hdr.flags := 0;
     multiboot_hdr.checksum :=
       cardinal(-multiboot_hdr.magic - multiboot_hdr.flags);
     multiboot_hdr.header_addr := image_base;
@@ -43,16 +42,8 @@ begin
     multiboot_hdr.depth := 0;
     multiboot_hdr.screen_addr := Pointer($B8000);
 
-//    MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
-    fs.Position := start;
-    size := ini.ReadInteger('address', 'size', 0);
-    MemoryStream.CopyFrom(fs, size);
-    fs.Position := start;
-    p := AllocMem(size);
-    fs.WriteBuffer(p, size);
-    FreeMem(p);
-    fs.Position := image_base;
-    MemoryStream.CopyFrom(fs, fs.size - fs.Position);
+    MemoryStream.WriteBuffer(multiboot_hdr, SizeOf(multiboot_hdr));
+    MemoryStream.CopyFrom(fs, 0);
     MemoryStream.SaveToFile('Kernel.bin');
   finally
     MemoryStream.Free;
